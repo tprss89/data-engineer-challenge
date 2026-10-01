@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Cópia fiel das fontes, carregada por `pipeline ingest`. Ver contracts/*.yml.
+    database: lake
+    schema: bronze
+    tables:
+      - name: transactions
+      - name: reconciliation_runs
+      - name: reconciliation_results
+      - name: enterprise_company
+      - name: paysettler_settlements
+
+  - name: ops
+    description: Tabelas de controle do pipeline.
+    database: lake
+    schema: ops
+    tables:
+      - name: ingestion_log
+        description: Uma linha por arquivo processado, com hash, status e contagens.

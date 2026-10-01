@@ -1,0 +1,141 @@
+version: 2
+
+# Severidade dos checks:
+#   error -> o dbt build falha e os modelos que dependem deste não são atualizados
+#   warn  -> publica e registra o alerta
+
+models:
+  - name: transactions_history
+    description: Todas as versões de cada transação interna, reconstruídas do log CDC.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [source_id, version]
+      - unique_combination:
+          arguments:
+            columns: [source_id]
+          config:
+            where: is_current
+    columns:
+      - name: valid_from
+        description: Momento em que esta versão passou a valer (tempo de sistema, do CDC).
+        data_tests: [not_null]
+      - name: valid_to
+        description: Momento em que foi substituída. Null quando ainda vale.
+
+  - name: transactions
+    description: Estado atual das transações internas. Uma linha por transaction_id, sem as apagadas.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: merchant_id
+        data_tests:
+          - not_null:
+              config: {severity: warn}
+      - name: amount
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [COMPLETED, PENDING, FAILED]
+      - name: currency
+        description: >
+          O README diz que amount é em BRL, mas os dados gerados trazem USD e EUR.
+          Mantemos a moeda informada e não convertemos.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [BRL, USD, EUR]
+              config: {severity: warn}
+
+  - name: merchants_history
+    description: Cadastro de merchants com histórico (SCD tipo 2).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [merchant_id]
+          config:
+            where: is_current and not is_deleted
+    columns:
+      - name: merchant_id
+        data_tests: [not_null]
+      - name: valid_from
+        data_tests: [not_null]
+
+  - name: reconciliation_runs
+    description: Estado atual de cada execução do serviço de reconciliação.
+    columns:
+      - name: run_id
+        data_tests: [unique, not_null]
+      - name: reference_date
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [IN_PROGRESS, COMPLETED, FAILED]
+
+  - name: reconciliation_results
+    description: >
+      Resultados aceitos da reconciliação. Pode haver mais de um resultado por transação no
+      mesmo run; is_effective marca o que vale.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [run_id, transaction_id]
+          config:
+            where: is_effective
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: run_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('reconciliation_runs')
+                field: run_id
+      - name: merchant_id
+        data_tests:
+          - not_null:
+              config: {severity: warn}
+      - name: category
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [MATCHED, MISMATCHED, UNRECONCILED_PROCESSOR, UNRECONCILED_INTERNAL]
+
+  - name: paysettler_settlements
+    description: Liquidações do PaySettler aceitas. Uma linha por transação por data de referência.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [reference_date, transaction_id]
+    columns:
+      - name: amount
+        data_tests: [not_null]
+      - name: settled_at
+        description: Em UTC. Valores sem fuso no arquivo foram tratados como UTC.
+        data_tests: [not_null]
+
+  - name: quarantine
+    description: Registros barrados na silver, com o motivo e a linha original em JSON.
+    data_tests:
+      - expect_no_rows:
+          name: quarantine_is_empty
+          config: {severity: warn}
+      - rejected_ratio_below:
+          arguments:
+            source_name: reconciliation_results
+            accepted: ref('reconciliation_results')
+            max_ratio: 0.05
+      - rejected_ratio_below:
+          arguments:
+            source_name: paysettler_settlements
+            accepted: ref('paysettler_settlements')
+            max_ratio: 0.05
+      - rejected_ratio_below:
+          arguments:
+            source_name: transactions
+            accepted: ref('transactions')
+            max_ratio: 0.05

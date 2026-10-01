@@ -1,0 +1,19 @@
+# O "banco" do dbt é o DuckLake. O arquivo DuckDB local é só área de trabalho da sessão.
+settlement:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: ":memory:"
+      extensions: [ducklake]
+      settings:
+        TimeZone: UTC
+      attach:
+        - path: "ducklake:{{ env_var('LAKE_PATH') }}/catalog.ducklake"
+          alias: lake
+          options:
+            data_path: "{{ env_var('LAKE_PATH') }}/files/"
+      database: lake
+      schema: silver
+      # O catálogo aceita um escritor por vez; uma thread evita conflito entre modelos.
+      threads: 1
