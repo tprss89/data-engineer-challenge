@@ -1,0 +1,22 @@
+name: reconciliation_results
+description: >
+  Resultado da reconciliação por transação e por run, via CDC. É a fonte de verdade
+  das categorias (MATCHED, MISMATCHED, UNRECONCILED_PROCESSOR, UNRECONCILED_INTERNAL).
+owner: time de reconciliação
+kind: cdc
+format: parquet
+paths:
+  - reconciliation_results.parquet
+primary_key: [id]
+columns:
+  - {name: id, type: BIGINT, required: true}
+  - {name: run_id, type: BIGINT, required: true}
+  - {name: transaction_id, type: VARCHAR, required: true}
+  - {name: merchant_id, type: VARCHAR, required: true}
+  - {name: category, type: VARCHAR, required: true}
+  - {name: internal_amount, type: DOUBLE, required: true}
+  - {name: processor_amount, type: DOUBLE, required: true}
+  - {name: difference, type: DOUBLE, required: true}
+  - {name: created_at, type: VARCHAR, required: true}
+  - {name: Op, type: VARCHAR, required: true}
+  - {name: _timestamp, type: VARCHAR, required: true}

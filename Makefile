@@ -1,4 +1,4 @@
-.PHONY: help up down build shell logs test generate generate-large clean
+.PHONY: help up down build shell logs test ingest status generate generate-large clean
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose
@@ -22,8 +22,14 @@ shell: ## Open an interactive shell inside the container
 logs: ## Tail container logs
 	$(COMPOSE) logs -f
 
-test: ## Run the generator smoke tests inside the container
+test: ## Run the test suite inside the container
 	$(PIPELINE) pytest tests/ -v
+
+ingest: ## Load the sample data into bronze (the fixture CSV is for 2025-03-16)
+	$(PIPELINE) pipeline ingest --reference-date 2025-03-16
+
+status: ## Show the latest ingestions
+	$(PIPELINE) pipeline status
 
 generate: ## Generate a small synthetic dataset (10k rows) into /tmp/generated
 	$(PIPELINE) python scripts/generate_sample_data.py \

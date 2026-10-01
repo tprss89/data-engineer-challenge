@@ -1,4 +1,7 @@
 # Data pipeline outputs (candidate generates these)
+dbt/logs/
+dbt/target/
+dbt/.user.yml
 data/
 bronze/
 silver/

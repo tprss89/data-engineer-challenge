@@ -1,0 +1,20 @@
+name: paysettler_settlements
+description: >
+  Arquivo diário de liquidações enviado pelo PaySettler. O bronze guarda tudo como texto,
+  exatamente como veio; parse de valores e datas acontece no silver.
+owner: PaySettler (externo), recebido pelo time de reconciliação
+kind: file
+format: csv
+paths:
+  - paysettler/settlement_*.csv
+  - settlement_paysettler.csv
+# A data de referência vem do nome do arquivo. Quando o nome não tem data, a CLI exige --reference-date.
+reference_date_pattern: 'settlement_(\d{4}-\d{2}-\d{2})\.csv$'
+columns:
+  - {name: transaction_id, type: VARCHAR, required: true}
+  - {name: merchant_id, type: VARCHAR, required: true}
+  - {name: amount, type: VARCHAR, required: true}
+  - {name: currency, type: VARCHAR, required: true}
+  - {name: settled_at, type: VARCHAR, required: true}
+  - {name: processor_reference, type: VARCHAR, required: true}
+  - {name: status, type: VARCHAR, required: true}

@@ -1,0 +1,21 @@
+name: reconciliation_runs
+description: >
+  Execuções do serviço de reconciliação, via CDC. Um run normalmente gera um evento I
+  (IN_PROGRESS) e um U (COMPLETED ou FAILED).
+owner: time de reconciliação
+kind: cdc
+format: parquet
+paths:
+  - reconciliation_runs.parquet
+primary_key: [id]
+columns:
+  - {name: id, type: BIGINT, required: true}
+  - {name: reference_date, type: VARCHAR, required: true}
+  - {name: file_name, type: VARCHAR, required: true}
+  - {name: status, type: VARCHAR, required: true}
+  - {name: total_transactions, type: BIGINT, required: true}
+  - {name: started_at, type: VARCHAR, required: true}
+  - {name: completed_at, type: VARCHAR, required: true}
+  - {name: created_at, type: VARCHAR, required: true}
+  - {name: Op, type: VARCHAR, required: true}
+  - {name: _timestamp, type: VARCHAR, required: true}

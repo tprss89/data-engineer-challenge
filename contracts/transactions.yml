@@ -1,0 +1,24 @@
+name: transactions
+description: >
+  Transações internas do sistema, extraídas do settlement_db via CDC (estilo Debezium).
+  Cada linha é um evento I/U/D, não o estado atual da transação.
+owner: time de plataforma de pagamentos
+kind: cdc
+format: parquet
+paths:
+  - transactions_batch_*.parquet
+primary_key: [id]
+columns:
+  - {name: id, type: BIGINT, required: true}
+  - {name: transaction_id, type: VARCHAR, required: true}
+  - {name: merchant_id, type: VARCHAR, required: true}
+  - {name: amount, type: DOUBLE, required: true}
+  - {name: currency, type: VARCHAR, required: true}
+  - {name: status, type: VARCHAR, required: true}
+  - {name: description, type: VARCHAR, required: true}
+  - {name: created_at, type: VARCHAR, required: true}
+  - {name: updated_at, type: VARCHAR, required: true}
+  - {name: Op, type: VARCHAR, required: true}
+  - {name: _timestamp, type: VARCHAR, required: true}
+  # Apareceu no segundo lote. Opcional para não quebrar a leitura dos lotes antigos.
+  - {name: payment_method, type: VARCHAR, required: false}

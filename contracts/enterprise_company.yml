@@ -1,0 +1,21 @@
+name: enterprise_company
+description: >
+  Cadastro de merchants, via CDC. Os updates mudam dados cadastrais (razão social, por
+  exemplo), então o histórico importa para auditoria.
+owner: time de cadastro
+kind: cdc
+format: parquet
+paths:
+  - enterprise_company.parquet
+primary_key: [id]
+columns:
+  - {name: id, type: BIGINT, required: true}
+  - {name: merchant_id, type: VARCHAR, required: true}
+  - {name: legal_name, type: VARCHAR, required: true}
+  - {name: trade_name, type: VARCHAR, required: true}
+  - {name: document, type: VARCHAR, required: true}
+  - {name: primary_cnae, type: VARCHAR, required: true}
+  - {name: created_at, type: VARCHAR, required: true}
+  - {name: updated_at, type: VARCHAR, required: true}
+  - {name: Op, type: VARCHAR, required: true}
+  - {name: _timestamp, type: VARCHAR, required: true}

@@ -4,10 +4,16 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATA_PATH=/app/docs/sample-data
+      - LAKE_PATH=/app/data/lake
+      - DBT_PROFILES_DIR=/app/dbt
       - LOG_LEVEL=INFO
       - ENVIRONMENT=local
     volumes:
-      - ./docs/sample-data:/app/docs/sample-data:ro
+      - ./docs:/app/docs:ro
+      - ./data:/app/data
+      - ./src:/app/src
+      - ./contracts:/app/contracts
+      - ./dbt:/app/dbt
       - ./scripts:/app/scripts
       - ./tests:/app/tests
     command: tail -f /dev/null
