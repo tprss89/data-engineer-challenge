@@ -1,0 +1,115 @@
+version: 2
+
+# Produtos de dados por consumidor. As perguntas que cada tabela responde (e as que não
+# responde) estão em docs/data-products.md, com queries de exemplo em docs/queries/.
+
+models:
+  - name: dim_merchant
+    description: >
+      Merchant com histórico (SCD2). Um fato aponta para a versão do cadastro válida na data
+      do evento. merchant_key = '-1' é o membro "não identificado".
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [merchant_id]
+          config:
+            where: is_current and merchant_key <> '-1'
+      - scd2_no_overlap:
+          arguments:
+            key: merchant_id
+            valid_from: valid_from
+            valid_to: valid_to
+    columns:
+      - name: merchant_key
+        data_tests: [unique, not_null]
+      - name: cnae_division
+        description: Dois primeiros dígitos do CNAE (divisão), usados como segmento.
+
+  - name: fct_reconciliation_result
+    description: >
+      Um resultado efetivo de reconciliação por run e transação. Incremental por
+      reference_date. Consumidores: Operações e Compliance.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [run_id, transaction_id]
+      - expression_is_true:
+          arguments:
+            expression: amount_at_risk >= 0
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: reference_date
+        data_tests: [not_null]
+      - name: merchant_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_merchant')
+                field: merchant_key
+      - name: amount_at_risk
+        description: >
+          Dinheiro envolvido na discrepância: a diferença no MISMATCHED, o valor do lado que
+          existe nos UNRECONCILED, zero no MATCHED.
+
+  - name: agg_run_health
+    description: Uma linha por execução da reconciliação. Consumidor - Operações.
+    columns:
+      - name: run_id
+        data_tests: [unique, not_null]
+      - name: health_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [OK, DISCREPANCY_SPIKE, INCOMPLETE, IN_PROGRESS, FAILED]
+      - name: discrepancy_rate
+        description: Fração dos resultados efetivos que não são MATCHED. Null se o run não tem resultados.
+      - name: trailing_avg_discrepancy_rate
+        description: Média da taxa nos 3 runs anteriores (sem contar o atual).
+
+  - name: fct_transaction_reconciliation_status
+    description: >
+      Situação de cada transação considerando todos os runs em que apareceu. Separa
+      discrepância ainda aberta de discrepância já resolvida. Consumidor - Operações.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: days_open
+        description: Dias entre o início da discrepância atual e o run mais recente nos dados.
+
+  - name: fct_daily_volume
+    description: >
+      Volume por dia, merchant e moeda: o transacionado (sistema interno) e o liquidado
+      (PaySettler). Moedas não são somadas entre si. Consumidor - CFO.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [volume_date, merchant_id, currency]
+      - expression_is_true:
+          arguments:
+            expression: >
+              transacted_amount = completed_amount + pending_amount + failed_amount
+
+  - name: audit_transaction_trail
+    description: >
+      Linha do tempo de cada transação com origem rastreável (arquivo, linha, hash).
+      Consumidor - Compliance.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [transaction_id, event_seq]
+    columns:
+      - name: event_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - internal_record_created
+                  - internal_record_updated
+                  - internal_record_deleted
+                  - reconciliation_result
+                  - reconciliation_result_quarantined
+                  - settlement_settled
+                  - settlement_reversed
+      - name: source_file_sha256
+        data_tests: [not_null]
