@@ -2,10 +2,10 @@
 dbt/logs/
 dbt/target/
 dbt/.user.yml
-data/
-bronze/
-silver/
-gold/
+/data/
+/bronze/
+/silver/
+/gold/
 *.duckdb
 *.duckdb.wal
 _delta_log/

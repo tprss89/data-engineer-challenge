@@ -1,0 +1,5 @@
+# O pipeline roda em container Linux; mantém LF mesmo em clones no Windows.
+* text=auto eol=lf
+*.parquet binary
+# Dados de entrada ficam exatamente como vieram (o hash do arquivo é prova de origem).
+docs/sample-data/** -text
