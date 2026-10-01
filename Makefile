@@ -1,4 +1,4 @@
-.PHONY: help up down build shell logs test ingest status generate generate-large clean
+.PHONY: help up down build shell logs test run ingest status generate generate-large clean
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose
@@ -25,10 +25,13 @@ logs: ## Tail container logs
 test: ## Run the test suite inside the container
 	$(PIPELINE) pytest tests/ -v
 
-ingest: ## Load the sample data into bronze (the fixture CSV is for 2025-03-16)
+run: ## Run the whole pipeline on the sample data (ingest, dbt, publish)
+	$(PIPELINE) pipeline run --reference-date 2025-03-16
+
+ingest: ## Load the sample data into bronze only (the fixture CSV is for 2025-03-16)
 	$(PIPELINE) pipeline ingest --reference-date 2025-03-16
 
-status: ## Show the latest ingestions
+status: ## Diagnostic panel: runs, freshness and data quality alerts
 	$(PIPELINE) pipeline status
 
 generate: ## Generate a small synthetic dataset (10k rows) into /tmp/generated

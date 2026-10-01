@@ -18,17 +18,17 @@ from conftest import FIXTURE_REFERENCE_DATE, SAMPLE_DATA
 from settlement_pipeline import bronze, cli, lake, transform
 from settlement_pipeline.config import REPO_ROOT, load_settings
 from settlement_pipeline.contracts import load_contracts
+from settlement_pipeline.pipeline import run_pipeline
 
 
 def build_lake(root: Path, data: Path | None = None, reference_date=FIXTURE_REFERENCE_DATE):
+    """Roda o pipeline completo (ingest, dbt, publicação) num lake temporário."""
     if data is None:
         data = root / "sources"
         shutil.copytree(SAMPLE_DATA, data)
     settings = load_settings(data_path=data, lake_path=root / "lake")
-    con = lake.connect(settings)
-    bronze.ingest(con, load_contracts(settings.contracts_path), data, reference_date)
-    con.close()
-    return settings, transform.run_dbt(settings)
+    outcome = run_pipeline(settings, reference_date=reference_date)
+    return settings, outcome.transform
 
 
 def query(settings, sql: str):

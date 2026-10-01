@@ -12,6 +12,10 @@ Registro das decisões do projeto e do motivo de cada uma. As marcadas como **pr
 
 **O dbt roda em subprocesso.** Dentro do mesmo processo Python o dbt-duckdb deixava o catálogo aberto e a conexão seguinte falhava. Subprocesso também é como um orquestrador chamaria.
 
+**Write-audit-publish com views fixadas em snapshot.** O dbt grava e testa tudo em `gold_build`. Só se o build inteiro passar, o pipeline aponta as views de `gold` para o snapshot recém-testado, numa transação. Se um check bloqueante falha, as views continuam no snapshot anterior. Não há cópia de dados, e voltar uma publicação é apontar as views para um snapshot anterior. Cheguei nisso porque a primeira versão não protegia de verdade: o `dbt build` substitui cada tabela antes de testá-la e só pula o que depende do teste que falhou, então o fato da gold era atualizado mesmo com a quarentena acima do limite. Hoje há um teste que simula um bug no serviço e verifica que os consumidores continuam vendo a publicação anterior.
+
+**Toda execução é registrada.** `ops.pipeline_runs` ganha uma linha no início (`running`) e é atualizada no fim, inclusive quando a execução quebra. Uma execução que morreu no meio fica como `running`, o que já é um sinal. `ops.dq_results` guarda o resultado de cada modelo e teste por execução, e `ops.publications`, cada snapshot publicado. `pipeline status` junta tudo num painel.
+
 ## CDC
 
 **Desempate de eventos: `_timestamp` primeiro, depois a operação, com D > U > I.** A transação `acc62b77...` tem U e D no mesmo timestamp. Ordenando só pelo timestamp, ela continuava ativa por acaso.

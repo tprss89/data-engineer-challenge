@@ -158,7 +158,7 @@ def test_reprocessing_a_date_rewrites_only_that_date(gold):
     after = con.execute("select max(snapshot_id) from lake.snapshots()").fetchone()[0]
     changes = con.execute(f"""
         select change_type, reference_date::varchar, count(*)
-        from ducklake_table_changes('lake', 'gold', 'fct_reconciliation_result',
+        from ducklake_table_changes('lake', 'gold_build', 'fct_reconciliation_result',
                                     {before + 1}, {after})
         group by all order by 1
     """).fetchall()

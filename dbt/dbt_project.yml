@@ -15,5 +15,7 @@ models:
       +schema: silver
       +materialized: table
     gold:
-      +schema: gold
+      # Área de build. Os consumidores leem gold.*, views publicadas pelo pipeline
+      # depois que todos os testes passam (ver src/settlement_pipeline/publish.py).
+      +schema: gold_build
       +materialized: table

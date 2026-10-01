@@ -30,6 +30,7 @@ class TransformResult:
     counts: Counter = field(default_factory=Counter)  # success, pass, warn, fail, error, skipped
     warnings: dict[str, int] = field(default_factory=dict)
     failures: dict[str, str] = field(default_factory=dict)
+    nodes: list[dict] = field(default_factory=list)  # um item por modelo/teste executado
 
     @property
     def success(self) -> bool:
@@ -73,6 +74,13 @@ def run_dbt(settings: Settings, select: list[str] | None = None,
         for node in json.loads(run_results.read_text(encoding="utf-8"))["results"]:
             name, status = _node_name(node["unique_id"]), node["status"]
             result.counts[status] += 1
+            result.nodes.append({
+                "node": name,
+                "resource_type": node["unique_id"].split(".")[0],
+                "status": status,
+                "failures": node.get("failures"),
+                "message": node.get("message"),
+            })
             if status == "warn":
                 result.warnings[name] = node.get("failures") or 0
             elif status in ("fail", "error"):

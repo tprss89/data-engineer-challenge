@@ -5,7 +5,7 @@ import duckdb
 
 from settlement_pipeline.config import Settings
 
-SCHEMAS = ("bronze", "ops")
+SCHEMAS = ("bronze", "ops", "gold")
 
 # Uma linha por arquivo processado, inclusive os ignorados e os que falharam.
 # É o primeiro lugar a olhar quando um dado "sumiu".
@@ -24,6 +24,53 @@ create table if not exists ops.ingestion_log (
     error           varchar,
     started_at      timestamptz,
     finished_at     timestamptz
+)
+"""
+
+# Uma linha por execução da CLI. Gravada no início com status running e atualizada no fim:
+# uma execução que morreu no meio fica como running, o que já é um sinal.
+PIPELINE_RUNS_DDL = """
+create table if not exists ops.pipeline_runs (
+    run_id             varchar,
+    command            varchar,
+    reference_date     date,
+    status             varchar,   -- running | succeeded | succeeded_with_warnings | blocked | failed
+    exit_code          integer,
+    started_at         timestamptz,
+    finished_at        timestamptz,
+    duration_seconds   double,
+    files_loaded       integer,
+    files_skipped      integer,
+    files_failed       integer,
+    rows_ingested      bigint,
+    dbt_counts         json,
+    warnings           json,
+    failures           json,
+    published_snapshot bigint,
+    error              varchar
+)
+"""
+
+# Resultado de cada modelo e teste do dbt em cada execução: série histórica da qualidade.
+DQ_RESULTS_DDL = """
+create table if not exists ops.dq_results (
+    run_id        varchar,
+    node          varchar,
+    resource_type varchar,   -- model | test
+    status        varchar,   -- success | pass | warn | fail | error | skipped
+    failures      bigint,
+    message       varchar,
+    recorded_at   timestamptz
+)
+"""
+
+# Cada publicação da gold: qual snapshot os consumidores passaram a ver, e quando.
+PUBLICATIONS_DDL = """
+create table if not exists ops.publications (
+    run_id       varchar,
+    snapshot_id  bigint,
+    tables       varchar[],
+    published_at timestamptz
 )
 """
 
@@ -69,5 +116,6 @@ def connect(settings: Settings, read_only: bool = False) -> duckdb.DuckDBPyConne
     if not read_only:
         for schema in SCHEMAS:
             con.execute(f"create schema if not exists {schema}")
-        con.execute(INGESTION_LOG_DDL)
+        for ddl in (INGESTION_LOG_DDL, PIPELINE_RUNS_DDL, DQ_RESULTS_DDL, PUBLICATIONS_DDL):
+            con.execute(ddl)
     return con

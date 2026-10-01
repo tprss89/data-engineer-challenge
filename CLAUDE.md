@@ -29,7 +29,7 @@ make status      # últimas ingestões, a partir de ops.ingestion_log
 make generate    # gera 10k linhas sintéticas em /tmp/generated
 ```
 
-Dentro do container a CLI é `pipeline`: `ingest` (bronze), `transform` (dbt build; `--reference-date` reprocessa só aquela data, `--full-refresh` reconstrói), `run` (os dois em sequência; se a ingestão bloquear um arquivo, não transforma), `query` (SQL ou arquivo .sql, somente leitura) e `status`. Saída 0 = ok (pode ter alertas), 1 = dado bloqueado (contrato ou check com severidade error), 2 = erro inesperado.
+Dentro do container a CLI é `pipeline`: `ingest` (bronze), `transform` (dbt build; `--reference-date` reprocessa só aquela data, `--full-refresh` reconstrói), `run` (os dois em sequência; se a ingestão bloquear um arquivo, não transforma), `query` (SQL ou arquivo .sql, somente leitura) e `status` (painel: últimas execuções, execuções que não terminaram, frescor por camada e alertas). Saída 0 = ok (pode ter alertas), 1 = dado bloqueado (contrato ou check com severidade error), 2 = erro inesperado.
 
 O dbt roda como subprocesso (`transform.py`), nunca dentro do mesmo processo Python: o dbt-duckdb deixa o catálogo aberto e quebra a conexão seguinte. Artefatos do dbt ficam em `data/dbt_target/`.
 
@@ -52,6 +52,8 @@ No Git Bash do Windows, use `MSYS_NO_PATHCONV=1` antes de comandos `docker` que 
 - Silver: cada fonte com problema de qualidade tem um modelo `*_checked` (ephemeral) que marca `_dq_errors`; o modelo final pega as linhas sem erro e `silver.quarantine` junta as rejeitadas com motivo e a linha original em JSON. Não descarte registro em silêncio.
 - Gold: perguntas por consumidor e o que fica de fora estão em `docs/data-products.md`. Toda pergunta nova vira uma query em `docs/queries/`, que é testada automaticamente (`tests/test_gold.py`).
 - `fct_reconciliation_result` é incremental por `reference_date` (var do dbt passada pela CLI). Não use `current_date` em modelo: "hoje" é o run mais recente nos dados.
+- Consumidores leem `gold.*`, que são views fixadas num snapshot do DuckLake. O dbt escreve em `gold_build`; `publish.py` só publica se o build inteiro passou. Nunca aponte uma query de consumidor para `gold_build`.
+- Toda execução passa por `pipeline.run_pipeline`, que registra `ops.pipeline_runs` e `ops.dq_results`. Não chame dbt ou ingestão por fora dele na CLI.
 - Quarentena acima de 5% de uma fonte bloqueia o build (`rejected_ratio_below`, severidade error). Qualquer linha em quarentena gera alerta.
 
 ## O que já sabemos dos dados de exemplo

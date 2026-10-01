@@ -1,19 +1,18 @@
--- Compliance: o que o relatório de saúde dos runs mostrava numa versão anterior?
+-- Compliance: o que os consumidores viam numa publicação anterior?
 --
--- O DuckLake guarda um snapshot a cada escrita. Dá para consultar qualquer tabela como ela
--- estava num snapshot (AT (VERSION => ...)) ou num instante (AT (TIMESTAMP => ...)).
--- Aqui: as últimas versões gravadas e o relatório como estava na primeira vez em que foi
--- publicado.
-select snapshot_id, snapshot_time, changes
-from lake.snapshots()
-order by snapshot_id desc
+-- Cada publicação da gold aponta para um snapshot do DuckLake, registrado em
+-- ops.publications. Como o DuckLake guarda os snapshots, dá para consultar qualquer tabela
+-- exatamente como ela estava publicada (AT (VERSION => ...)), ou num instante qualquer
+-- (AT (TIMESTAMP => ...)).
+--
+-- Aqui: o histórico de publicações e o relatório de saúde dos runs como saiu na primeira.
+select run_id, snapshot_id, published_at
+from ops.publications
+order by published_at desc
 limit 5;
 
-set variable first_version = (
-    select min(snapshot_id) from lake.snapshots()
-    where list_contains(changes['tables_created'], 'gold.agg_run_health')
-);
+set variable first_publication = (select min(snapshot_id) from ops.publications);
 
 select reference_date, health_status, discrepancy_rate, amount_at_risk
-from gold.agg_run_health at (version => getvariable('first_version'))
+from gold_build.agg_run_health at (version => getvariable('first_publication'))
 order by reference_date
