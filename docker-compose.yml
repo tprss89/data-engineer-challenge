@@ -7,6 +7,7 @@ services:
       - LAKE_PATH=/app/data/lake
       - DBT_PROFILES_DIR=/app/dbt
       - LOG_LEVEL=INFO
+      - DUCKDB_MEMORY_LIMIT=4GB
       - ENVIRONMENT=local
     volumes:
       - ./docs:/app/docs:ro

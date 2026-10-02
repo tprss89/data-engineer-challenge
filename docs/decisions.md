@@ -16,6 +16,12 @@ Registro das decisões do projeto e do motivo de cada uma. As marcadas como **pr
 
 **Toda execução é registrada.** `ops.pipeline_runs` ganha uma linha no início (`running`) e é atualizada no fim, inclusive quando a execução quebra. Uma execução que morreu no meio fica como `running`, o que já é um sinal. `ops.dq_results` guarda o resultado de cada modelo e teste por execução, e `ops.publications`, cada snapshot publicado. `pipeline status` junta tudo num painel.
 
+**Limite de memória explícito no DuckDB (padrão de 4 GB).** Sem limite, o DuckDB usa até 80% da RAM; no benchmark de 5M chegou a 6,6 GB. Com o limite, ele despeja em disco. O limite e a pasta temporária são definidos na criação do banco, não por cursor, porque o DuckDB não deixa trocar a pasta temporária depois de usá-la (só apareceu no volume de 5M).
+
+**Modelos `*_checked` materializados como tabela, não ephemeral.** Como ephemeral, a resolução de CDC rodava duas vezes (tabela final e quarentena). Materializar reduziu o build de 5M de 91 s para 62 s.
+
+**Silver reconstruída inteira a cada execução.** É simples e idempotente, e cabe com folga em 5M por mês (62 s). Não escala para 5M por dia, porque o custo cresce com o histórico. O caminho está em `docs/scale.md`.
+
 ## CDC
 
 **Desempate de eventos: `_timestamp` primeiro, depois a operação, com D > U > I.** A transação `acc62b77...` tem U e D no mesmo timestamp. Ordenando só pelo timestamp, ela continuava ativa por acaso.

@@ -94,7 +94,10 @@ def connect(settings: Settings, read_only: bool = False) -> duckdb.DuckDBPyConne
         )
     if not read_only:
         settings.lake_data_path.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect()
+    con = duckdb.connect(config={
+        "memory_limit": settings.duckdb_memory_limit,
+        "temp_directory": settings.spill_path.as_posix(),
+    })
     con.execute("load ducklake")
     options = f"data_path {_sql_literal(settings.lake_data_path.as_posix() + '/')}"
     if read_only:

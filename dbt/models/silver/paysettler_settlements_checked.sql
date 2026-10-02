@@ -1,4 +1,6 @@
-{{ config(materialized='ephemeral') }}
+-- Tabela (e não ephemeral) porque o modelo final e a quarentena leem daqui: como
+-- ephemeral, a resolução de CDC rodava duas vezes.
+{{ config(materialized='table') }}
 
 -- Liquidações do PaySettler tipadas, com os problemas de qualidade marcados.
 -- Se o processador reenviar o arquivo de uma data, vale a versão carregada por último;

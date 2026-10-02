@@ -1,4 +1,6 @@
-{{ config(materialized='ephemeral') }}
+-- Tabela (e não ephemeral) porque o modelo final e a quarentena leem daqui: como
+-- ephemeral, a resolução de CDC rodava duas vezes.
+{{ config(materialized='table') }}
 
 -- Resultado atual de cada linha de reconciliação, com os problemas de qualidade marcados.
 -- Valores sempre em decimal(18,2): em double, 0,01 de diferença vira 0,0100000000002 e

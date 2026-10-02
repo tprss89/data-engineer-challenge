@@ -63,7 +63,9 @@ def run_dbt(settings: Settings, select: list[str] | None = None,
         cmd += ["--vars", json.dumps({"reference_date": reference_date})]
     if full_refresh:
         cmd += ["--full-refresh"]
-    env = {**os.environ, "LAKE_PATH": settings.lake_path.as_posix()}
+    env = {**os.environ, "LAKE_PATH": settings.lake_path.as_posix(),
+           "DUCKDB_MEMORY_LIMIT": settings.duckdb_memory_limit,
+           "DUCKDB_TEMP_DIRECTORY": settings.spill_path.as_posix()}
 
     log_event(logger, "transform.started", select=select, reference_date=reference_date,
               full_refresh=full_refresh)

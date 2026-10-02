@@ -8,6 +8,12 @@ settlement:
       extensions: [ducklake]
       settings:
         TimeZone: UTC
+      # Definidos na criação do banco, não por cursor: o DuckDB não deixa trocar a pasta
+      # temporária depois de usá-la. Acima do limite ele despeja em disco em vez de crescer
+      # (o padrão seria 80% da RAM).
+      config_options:
+        memory_limit: "{{ env_var('DUCKDB_MEMORY_LIMIT', '4GB') }}"
+        temp_directory: "{{ env_var('DUCKDB_TEMP_DIRECTORY', '/tmp/duckdb_tmp') }}"
       attach:
         - path: "ducklake:{{ env_var('LAKE_PATH') }}/catalog.ducklake"
           alias: lake

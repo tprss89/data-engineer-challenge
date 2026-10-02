@@ -54,6 +54,7 @@ No Git Bash do Windows, use `MSYS_NO_PATHCONV=1` antes de comandos `docker` que 
 - `fct_reconciliation_result` é incremental por `reference_date` (var do dbt passada pela CLI). Não use `current_date` em modelo: "hoje" é o run mais recente nos dados.
 - Consumidores leem `gold.*`, que são views fixadas num snapshot do DuckLake. O dbt escreve em `gold_build`; `publish.py` só publica se o build inteiro passou. Nunca aponte uma query de consumidor para `gold_build`.
 - Toda execução passa por `pipeline.run_pipeline`, que registra `ops.pipeline_runs` e `ops.dq_results`. Não chame dbt ou ingestão por fora dele na CLI.
+- Desempenho: meça com `scripts/benchmark.py` (dentro do container) antes de afirmar qualquer coisa sobre escala. Resultados e o plano para 5M/dia estão em `docs/scale.md`. Não mexa no docker-compose.yml com um benchmark rodando: recriar o container apaga o /tmp.
 - Quarentena acima de 5% de uma fonte bloqueia o build (`rejected_ratio_below`, severidade error). Qualquer linha em quarentena gera alerta.
 
 ## O que já sabemos dos dados de exemplo
