@@ -407,6 +407,7 @@ Usei o **Claude Code** (modelo Claude Opus) como par de programação durante o 
 - O `.gitignore` original ignorava qualquer pasta `silver/` ou `gold/`. O primeiro commit teria ido sem nenhum modelo dbt.
 - Um número na documentação estava errado (20 merchants em vez de 12). Pedi para conferir cada número contra os dados.
 - Dois bugs só apareceram com volume real: a configuração de memória do DuckDB e a resolução de CDC rodando duas vezes. Os testes com o fixture não pegariam nenhum dos dois.
+- No começo, pedi que toda decisão com limiar arbitrário fosse marcada como provisória, para ser revisada com o pipeline inteiro rodando. A revisão encontrou três problemas de desenho que os testes não pegavam, porque os testes verificavam o que o desenho prometia, e não se a promessa fazia sentido. O limite de quarentena era calculado sobre o histórico e diluía um arquivo quebrado. Cerca de 5% do valor em risco era dólar ou euro somado como real. A regra de pico em pontos percentuais fixos era ruído com 90 resultados por run e cega com 5 milhões. Os três foram corrigidos, com testes, e o raciocínio está em `docs/decisions.md`.
 
 Em todos esses casos, o que segurou o erro foi a combinação de testes automatizados, rodar de verdade em vez de supor e revisar o resultado antes de aceitar.
 
