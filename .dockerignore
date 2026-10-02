@@ -1,0 +1,10 @@
+# Fica fora da imagem: o lake e artefatos locais (podem passar de GBs depois do benchmark).
+data/
+.git/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+dbt/target/
+dbt/logs/
+*.duckdb
+*.duckdb.wal

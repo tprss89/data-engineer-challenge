@@ -176,8 +176,15 @@ def _insert_sql(contract: Contract, reader: str, source_schema: dict[str, str]) 
         "current_timestamp as _ingested_at"
     )
     if contract.kind == "cdc":
-        # Hash do evento sobre todas as colunas da fonte, em ordem fixa.
-        packed = ", ".join(f"{_quote(c)} := {_quote(c)}" for c in sorted(source_schema))
+        # Identidade do evento: as colunas declaradas no contrato, na ordem do contrato, com
+        # nulo para as que o arquivo não tem. Não usar as colunas do arquivo: uma extração
+        # nova com uma coluna a mais (schema drift) mudaria o hash de eventos antigos e eles
+        # entrariam de novo.
+        packed = ", ".join(
+            f"{_quote(c.name)} := "
+            + (_quote(c.name) if c.name in source_schema else f"null::{c.type}")
+            for c in contract.columns
+        )
         return f"""
             insert into {contract.table} by name
             with src as (
@@ -187,8 +194,9 @@ def _insert_sql(contract: Contract, reader: str, source_schema: dict[str, str]) 
                 from {reader}
             ),
             new_events as (
-                select * from src
-                where _event_hash not in (select _event_hash from {contract.table})
+                select src.*
+                from src
+                anti join {contract.table} as existing using (_event_hash)
                 qualify row_number() over (partition by _event_hash order by _source_row) = 1
             )
             select *, {common} from new_events

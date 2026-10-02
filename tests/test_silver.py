@@ -64,6 +64,9 @@ def test_build_passes_with_only_the_expected_warnings(built):
     assert result.warnings == {
         "not_null_reconciliation_results_merchant_id": 16,
         "quarantine_is_empty": 15,
+        # No fixture, resultados, transações e arquivo do processador não batem entre si.
+        "assert_results_consistent_with_internal_records": 763,
+        "assert_results_consistent_with_processor_files": 91,
     }
 
 

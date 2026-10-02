@@ -21,7 +21,7 @@ Não reabra essas decisões sem me perguntar. O porquê de cada uma fica em `doc
 ## Comandos
 
 ```bash
-make up          # sobe o container
+make up          # sobe o container e já roda o pipeline no fixture
 make shell       # shell dentro do container
 make test        # roda os testes
 make run         # pipeline completo no fixture (ingest, dbt, publicação)
@@ -44,13 +44,15 @@ No Git Bash do Windows, use `MSYS_NO_PATHCONV=1` antes de comandos `docker` que 
 
 - Toda execução recebe uma `reference_date` e precisa ser idempotente. Rodar duas vezes a mesma data não pode duplicar nem corromper nada, inclusive se falhar no meio.
 - Bronze nunca transforma dado. Só acrescenta metadados de ingestão (`_batch_id`, `_source_file`, `_file_hash`, `_source_row`, `_ingested_at`, mais `_event_hash` no CDC e `_reference_date` no CSV).
-- Idempotência do bronze: arquivo com hash já carregado é ignorado; no CDC, cada evento entra uma vez (dedupe por `_event_hash`, porque as extrações são acumuladas). No CSV não há dedupe por linha: duplicata do processador fica no bronze e é tratada no silver.
+- Idempotência do bronze: arquivo com hash já carregado é ignorado; no CDC, cada evento entra uma vez (dedupe por `_event_hash`, porque as extrações são acumuladas). O hash usa as colunas declaradas no contrato, nunca as presentes no arquivo: coluna nova mudaria o hash de eventos antigos. No CSV não há dedupe por linha: duplicata do processador fica no bronze e é tratada no silver.
 - Contratos das fontes ficam em `contracts/*.yml`. Coluna obrigatória ausente ou tipo diferente bloqueia o arquivo; coluna nova vira drift (entra na tabela e gera alerta).
 - Todo modelo novo nasce com teste. Cada check tem severidade definida: `error` para o pipeline e não publica, `warn` publica e registra o alerta.
 - Regra de negócio sempre com referência ao glossário. Tolerância de R$ 0,01 e janela de 7 dias inclusiva vêm de lá.
 - Só considere uma mudança pronta depois de rodar os testes no container. "Deveria funcionar" não conta.
 - Timestamps são tratados como UTC. Valor sem fuso é assumido UTC e isso está documentado.
 - Silver: cada fonte com problema de qualidade tem um modelo `*_checked` (tabela, não ephemeral: a quarentena e o modelo final leem dele) que marca `_dq_errors`; o modelo final pega as linhas sem erro e `silver.quarantine` junta as rejeitadas com motivo e a linha original em JSON. Não descarte registro em silêncio.
+- Gold tem contrato (`contract: enforced` em `_gold.yml`). Mudar coluna ou tipo de um modelo da gold é mudar o contrato: atualize `_gold.yml` de propósito e me avise.
+- Checks cruzados entre fontes (`assert_results_consistent_with_*`) são `warn`. No fixture acusam 763 e 91 divergências; isso é esperado.
 - Gold: perguntas por consumidor e o que fica de fora estão em `docs/data-products.md`. Toda pergunta nova vira uma query em `docs/queries/`, que é testada automaticamente (`tests/test_gold.py`).
 - `fct_reconciliation_result` é incremental por `reference_date` (var do dbt passada pela CLI). Não use `current_date` em modelo: "hoje" é o run mais recente nos dados.
 - Consumidores leem `gold.*`, que são views fixadas num snapshot do DuckLake. O dbt escreve em `gold_build`; `publish.py` só publica se o build inteiro passou. Nunca aponte uma query de consumidor para `gold_build`.

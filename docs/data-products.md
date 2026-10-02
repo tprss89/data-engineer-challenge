@@ -92,6 +92,8 @@ Para "o que o relatório mostrava", não construí nada: o DuckLake guarda um sn
 | `gold.audit_transaction_trail` | um evento de uma transação | Compliance |
 | `gold.dim_merchant` | uma versão do cadastro de um merchant | todos |
 
+Cada tabela tem contrato: nome e tipo de cada coluna estão fixados em `dbt/models/gold/_gold.yml`, e um modelo que mude o formato faz o build falhar sem publicar.
+
 As tabelas de `gold` são views publicadas pelo pipeline. O dbt constrói e testa tudo em `gold_build`, e só quando o build inteiro passa as views passam a apontar para o snapshot novo. Se um check bloqueante falha, quem consome continua vendo a última versão boa.
 
 `fct_reconciliation_result` é incremental por data de referência: `pipeline run --reference-date 2025-03-16` apaga e regrava só aquela data. As outras são reconstruídas a cada execução, porque são agregações pequenas sobre ela.

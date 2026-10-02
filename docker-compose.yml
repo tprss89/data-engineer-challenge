@@ -17,4 +17,10 @@ services:
       - ./dbt:/app/dbt
       - ./scripts:/app/scripts
       - ./tests:/app/tests
-    command: tail -f /dev/null
+    # Sobe já rodando o pipeline no fixture (idempotente: subir de novo não duplica nada) e
+    # depois fica de pé para os comandos `docker compose exec pipeline pipeline ...`.
+    # Se o pipeline falhar, o container continua de pé para investigar.
+    command: >
+      sh -c "pipeline run --reference-date 2025-03-16;
+             echo \"pipeline terminou (código $$?). Painel: docker compose exec pipeline pipeline status\";
+             exec tail -f /dev/null"

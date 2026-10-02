@@ -247,19 +247,20 @@ Fique à vontade para usar ferramentas de IA durante o desafio. Se usar, documen
 Só precisa de Docker. A internet é usada apenas no build da imagem.
 
 ```bash
+# sobe o container e já roda o pipeline completo no fixture (ingestão, dbt, publicação)
 docker compose up -d --build
-
-# pipeline completo sobre o fixture: ingestão, dbt e publicação da gold
-# (o CSV do fixture não tem data no nome, então a data vai no comando)
-docker compose exec pipeline pipeline run --reference-date 2025-03-16
+docker compose logs -f pipeline      # espere "pipeline terminou (código 0)", cerca de 30 s
 
 # painel de diagnóstico: execuções, frescor por fonte, o que está publicado, alertas
 docker compose exec pipeline pipeline status
 
+# rodar de novo (idempotente; o CSV do fixture não tem data no nome, então a data vai no comando)
+docker compose exec pipeline pipeline run --reference-date 2025-03-16
+
 # queries de exemplo da Parte 1 (todas em docs/queries/)
 docker compose exec pipeline pipeline query docs/queries/ops_01_run_health.sql
 
-# testes: 62, cerca de 3 minutos
+# testes: 66, cerca de 4 minutos
 docker compose exec pipeline pytest
 ```
 
@@ -272,6 +273,8 @@ Outros caminhos:
 - **Explorar no navegador.** No host, fora do container: `pip install "duckdb>=1.5.6,<1.6"` e `python scripts/explore.py`. Abre o lake na DuckDB UI, em modo leitura. Feche com Enter antes de rodar o pipeline de novo, porque o catálogo aceita um escritor por vez.
 - **Benchmark.** `docker compose exec pipeline python scripts/benchmark.py --rows 5000000 --days 30`, cerca de 8 minutos.
 
+Enquanto o pipeline roda, o catálogo aceita um escritor só: espere a execução do `up` terminar antes de rodar outro `pipeline run`.
+
 Códigos de saída da CLI: `0` ok (pode haver alertas), `1` dado bloqueado (arquivo fora do contrato ou check de qualidade), `2` erro técnico. Um orquestrador repete o `2` e não repete o `1`.
 
 ### Premissas e decisões
@@ -280,7 +283,7 @@ O registro completo, com o motivo de cada escolha, está em [`docs/decisions.md`
 
 **Não refaço a reconciliação.** `reconciliation_results` é a fonte de verdade das categorias. O CSV de exemplo não reproduz os resultados (488 de 510 linhas têm valor diferente do interno), então recalcular daria números que não batem com o que o serviço gravou. O CSV entra como dado bruto do processador.
 
-**Os dados de exemplo são inconsistentes entre si, e tratei cada fonte pelo que ela é.** No fixture, resultados e transações divergem em 95% dos merchants e dos valores. Nos dados do gerador, a divergência é zero. Por isso não preencho campo de uma fonte com dado da outra; por exemplo, os 16 `merchant_id` nulos nos resultados continuam nulos e geram alerta.
+**Os dados de exemplo são inconsistentes entre si, e tratei cada fonte pelo que ela é.** No fixture, resultados e transações divergem em 95% dos merchants e dos valores. Nos dados do gerador, a divergência é zero. Por isso não preencho campo de uma fonte com dado da outra; por exemplo, os 16 `merchant_id` nulos nos resultados continuam nulos e geram alerta. A divergência não fica escondida: dois checks cruzados comparam cada resultado com o sistema interno e com o arquivo do processador e alertam a cada execução (763 e 91 divergências no fixture, zero no gerador).
 
 **CDC: ordem por `_timestamp` e, no empate, D > U > I.** A transação `acc62b77` tem U e D no mesmo instante; ordenando só pelo tempo, ela continuava ativa por acaso.
 
@@ -316,7 +319,7 @@ Medallion sobre DuckLake, numa pasta local: o catálogo é um arquivo DuckDB, e 
 
 - **Bronze.** Cópia fiel das fontes, só append, com hash do arquivo e linha de origem. Idempotente por hash de arquivo e, no CDC, por hash de evento.
 - **Silver.** CDC resolvido (estado atual e histórico SCD2), tipos, normalização e quarentena.
-- **Gold.** Seis tabelas desenhadas a partir das perguntas de cada consumidor ([`docs/data-products.md`](docs/data-products.md)). O dbt grava e testa tudo em `gold_build`. Só se o build inteiro passar, as views de `gold` passam a apontar para o snapshot testado, numa transação (write-audit-publish). Se um check bloqueante falha, os consumidores continuam vendo a última versão boa.
+- **Gold.** Seis tabelas desenhadas a partir das perguntas de cada consumidor ([`docs/data-products.md`](docs/data-products.md)), cada uma com contrato de colunas e tipos. O dbt grava e testa tudo em `gold_build`. Só se o build inteiro passar, as views de `gold` passam a apontar para o snapshot testado, numa transação (write-audit-publish). Se um check bloqueante falha, os consumidores continuam vendo a última versão boa.
 
 Cada execução fica registrada em `ops.pipeline_runs`, com o resultado de cada teste em `ops.dq_results` e cada publicação em `ops.publications`.
 
@@ -333,7 +336,7 @@ dbt/models/gold/    produtos de dados por consumidor
 docs/queries/       queries de exemplo da Parte 1, testadas automaticamente
 docs/               decisões, produtos de dados, arquitetura (Parte 3) e escala
 scripts/            gerador (original), benchmark e explore (DuckDB UI)
-tests/              62 testes: bronze, silver, gold, pipeline, extensibilidade
+tests/              66 testes: bronze, silver, gold, pipeline, extensibilidade
 ```
 
 A Parte 3 está em [`docs/architecture.md`](docs/architecture.md) (desenho de produção e troubleshooting) e [`docs/scale.md`](docs/scale.md) (números medidos com 5M de transações e onde o desenho quebra).
@@ -365,6 +368,8 @@ O que daria mais trabalho: um processador que não entrega arquivo (API ou JSON 
 
 **3. Um reenvio do processador substitui o dia inteiro.** Se o PaySettler reenvia o arquivo de uma data, a versão mais recente vale por completo. Se ele mandar um arquivo só com as linhas corrigidas, o resto do dia some da silver (continua no bronze). Um processador que manda correções parciais precisaria de uma regra de merge por transação, combinada com ele.
 
+Há outros pontos em aberto, menores, registrados com o motivo no fim de [`docs/decisions.md`](docs/decisions.md).
+
 ### O que faria diferente em produção
 
 O que simplifiquei: pasta local em vez de object storage, extrações CDC em arquivo em vez de Debezium e Kafka, a CLI no lugar de um orquestrador, tabelas `ops` no lugar de alertas de verdade, limiares escolhidos sem histórico e nenhum controle de acesso.
@@ -377,7 +382,8 @@ O que a versão de produção precisaria, em ordem (detalhes em [`docs/architect
 4. Silver incremental e idempotência por posição do CDC, antes de o volume chegar a 5M por dia.
 5. Retenção de snapshots alinhada com Compliance (testei: o lake do benchmark foi de 11,5 GB para 4,8 GB sem quebrar a gold publicada) e compactação de arquivos.
 6. Contratos de dados como acordo formal com os times donos das fontes, revisados junto.
-7. Limiares calibrados com histórico real, acesso por schema (consumidores só em `gold`) e o benchmark rodando no CI.
+7. Integração contínua rodando `pytest` a cada push e o benchmark toda semana.
+8. Limiares calibrados com histórico real e acesso por schema (consumidores só em `gold`).
 
 ### Ferramentas de IA utilizadas
 
@@ -406,6 +412,7 @@ Usei o **Claude Code** (modelo Claude Opus) como par de programação durante o 
 - A primeira versão do bloqueio de qualidade não protegia a gold de verdade (o dbt substitui a tabela antes de testá-la). Isso foi encontrado no planejamento da observabilidade e resolvido com write-audit-publish, agora coberto por teste.
 - O `.gitignore` original ignorava qualquer pasta `silver/` ou `gold/`. O primeiro commit teria ido sem nenhum modelo dbt.
 - Um número na documentação estava errado (20 merchants em vez de 12). Pedi para conferir cada número contra os dados.
+- Uma revisão de código feita no fim, antes do PR, achou um bug de idempotência que os testes não cobriam: uma extração CDC nova com a coluna do schema drift duplicava 742 eventos antigos. Também achou que a documentação prometia checks cruzados entre fontes que não existiam. Os dois foram corrigidos, com teste.
 - Dois bugs só apareceram com volume real: a configuração de memória do DuckDB e a resolução de CDC rodando duas vezes. Os testes com o fixture não pegariam nenhum dos dois.
 - No começo, pedi que toda decisão com limiar arbitrário fosse marcada como provisória, para ser revisada com o pipeline inteiro rodando. A revisão encontrou três problemas de desenho que os testes não pegavam, porque os testes verificavam o que o desenho prometia, e não se a promessa fazia sentido. O limite de quarentena era calculado sobre o histórico e diluía um arquivo quebrado. Cerca de 5% do valor em risco era dólar ou euro somado como real. A regra de pico em pontos percentuais fixos era ruído com 90 resultados por run e cega com 5 milhões. Os três foram corrigidos, com testes, e o raciocínio está em `docs/decisions.md`.
 

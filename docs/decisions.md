@@ -20,15 +20,25 @@ Registro das decisões do projeto e do motivo de cada uma. Algumas foram tomadas
 
 **Modelos `*_checked` materializados como tabela, não ephemeral.** Como ephemeral, a resolução de CDC rodava duas vezes (tabela final e quarentena). Materializar reduziu o build de 5M de 91 s para 62 s.
 
+**`docker compose up` já roda o pipeline.** O enunciado diz que a solução deve rodar com `docker compose up`. O container sobe, roda `pipeline run` no fixture e continua de pé para os comandos. Como a execução é idempotente, subir de novo não duplica nada. Se o pipeline falhar, o container continua de pé para investigar.
+
+**Contrato também na saída.** Os contratos YAML protegem a entrada. Na saída, as seis tabelas da gold usam o contrato do dbt (`contract: enforced`): nome e tipo de cada coluna ficam fixados em `_gold.yml`, e um modelo que mude o formato faz o build falhar sem publicar. Há um teste que renomeia uma coluna numa cópia do projeto e verifica exatamente isso.
+
+**Versões fixadas.** `duckdb`, `dbt-duckdb` e também o `dbt-core`, que vem como dependência indireta: um `dbt-core` novo poderia mudar o build de quem clona o repositório. Tudo foi validado com duckdb 1.5.6, dbt-core 1.12.5 e dbt-duckdb 1.11.0.
+
 **Silver reconstruída inteira a cada execução.** É simples e idempotente, e cabe com folga em 5M por mês (62 s). Não escala para 5M por dia, porque o custo cresce com o histórico. O caminho está em `docs/scale.md`.
 
 ## CDC
 
 **Desempate de eventos: `_timestamp` primeiro, depois a operação, com D > U > I.** A transação `acc62b77...` tem U e D no mesmo timestamp. Ordenando só pelo timestamp, ela continuava ativa por acaso.
 
+**A identidade de um evento vem do contrato, não do arquivo.** O hash que deduplica eventos no bronze usa as colunas declaradas no contrato, na ordem do contrato, com nulo para as ausentes. A primeira versão usava as colunas presentes no arquivo, e a revisão do código achou o problema: uma extração nova com a coluna que surgiu no lote 2 (`payment_method`, vazia) mudava o hash de eventos antigos, e os 742 eventos do lote 1 entravam de novo. É exatamente o schema drift que o gerador simula. Há um teste de regressão com esse caso.
+
 ## Qualidade de dados (silver)
 
 **Valores monetários sempre em `decimal(18,2)`.** Em double, 127 resultados `MATCHED` pareciam passar da tolerância de R$ 0,01 por erro de ponto flutuante. Em decimal, sobram 5, e são todos registros inconsistentes de verdade.
+
+**Checks cruzados entre fontes, como alerta.** Dois checks comparam cada resultado efetivo com as outras fontes: o lado interno com `transactions` (a transação existe? valor e merchant batem?) e o lado do processador com o arquivo do mesmo dia. São `warn`, não `error`: o resultado da reconciliação é a fonte de verdade, e uma divergência é sinal para investigar o serviço, não motivo para esconder números. No fixture eles acusam 763 e 91 resultados divergentes, que é a inconsistência que a exploração encontrou; nos dados do gerador, zero.
 
 **Registro com problema vai para `silver.quarantine`, nunca some.** Cada linha rejeitada fica com o motivo e o registro original em JSON.
 
@@ -65,3 +75,16 @@ Registro das decisões do projeto e do motivo de cada uma. Algumas foram tomadas
 **CSV sem data no nome exige `--reference-date`.** A CLI não tenta adivinhar a data pelo conteúdo.
 
 **Reenvio do arquivo de uma data substitui a versão anterior na silver.** As duas versões continuam no bronze.
+
+## Pontos em aberto
+
+Coisas que conheço e deixei como estão, com o motivo.
+
+**`--reference-date` tem dois papéis.** É a data do CSV que não tem data no nome e também a partição que o fato da gold reprocessa. Se uma extração CDC trouxer mudanças em resultados de outra data, elas chegam à silver mas só entram no fato num build sem data (ou com aquela data). O check `assert_gold_is_up_to_date_with_silver` avisa quando isso acontece. Em produção, o orquestrador saberia quais datas cada lote tocou e reprocessaria todas.
+
+**Um arquivo fora do contrato bloqueia as execuções seguintes até alguém agir.** É coerente com não publicar com uma fonte desatualizada, mas não existe um jeito de dizer "aceito este lote com ressalva" ou "ignore este arquivo". Hoje a saída é corrigir a fonte ou tirar o arquivo da pasta. Em produção, eu teria uma tabela de lotes aceitos ou descartados, com quem decidiu e por quê.
+
+**A silver não passa pelo write-audit-publish.** Só a gold é publicada por snapshot. A query de Compliance sobre a quarentena e o painel de status leem a silver ao vivo, então podem mostrar o resultado de uma execução que foi bloqueada. Para o painel isso é desejável (mostra o que barrou); para a query de Compliance, o certo seria publicar a quarentena junto com a gold.
+
+**Sem integração contínua.** Os testes rodam no container com um comando, mas nada os roda a cada push. Um workflow que faça `docker compose build` e `pytest` seria o primeiro passo em produção, junto com o benchmark semanal.
+

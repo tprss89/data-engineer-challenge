@@ -7,7 +7,7 @@ PIPELINE := $(COMPOSE) exec pipeline
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-up: ## Build and start the container in the background
+up: ## Build, start the container and run the pipeline on the sample data
 	$(COMPOSE) up -d --build
 
 down: ## Stop and remove the container

@@ -48,7 +48,8 @@ def test_successful_run_is_recorded_and_published(settings):
     """)
     assert row == [("succeeded_with_warnings", 6, 0, outcome.published_snapshot, True)]
     # O resultado de cada modelo e teste fica guardado, inclusive os alertas.
-    assert scalar(settings, "select count(*) from ops.dq_results where status = 'warn'") == 2
+    # 2 de qualidade (merchant nulo, quarentena) e 2 checks cruzados entre fontes.
+    assert scalar(settings, "select count(*) from ops.dq_results where status = 'warn'") == 4
     published = scalar(settings, "select tables from ops.publications")
     assert "agg_run_health" in published and "fct_reconciliation_result" in published
 

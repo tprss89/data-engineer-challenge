@@ -110,6 +110,25 @@ def test_cumulative_cdc_extract_only_adds_new_events(con, contracts, data_path):
     assert count(con, "bronze.reconciliation_runs") == 20
 
 
+def test_cdc_event_identity_survives_schema_drift(con, contracts, data_path):
+    # Extração nova e acumulada: os mesmos eventos do lote 1, agora com a coluna que surgiu
+    # no lote 2 (vazia). São os mesmos eventos e não podem entrar de novo.
+    transactions = by_name(contracts, "transactions")
+    bronze.ingest(con, [transactions], data_path)
+    source = (data_path / "transactions_batch_1.parquet").as_posix()
+    duckdb.execute(f"""
+        copy (select *, null::varchar as payment_method from read_parquet('{source}'))
+        to '{(data_path / 'transactions_batch_3.parquet').as_posix()}'
+    """)
+
+    results = bronze.ingest(con, [transactions], data_path)
+
+    [new_extract] = [r for r in results if r.source_file.endswith("batch_3.parquet")]
+    assert (new_extract.status, new_extract.rows_read, new_extract.rows_inserted) == \
+        ("loaded", 742, 0)
+    assert count(con, "bronze.transactions") == 1060
+
+
 def test_csv_without_date_needs_reference_date(con, contracts, data_path):
     [result] = bronze.ingest(con, [by_name(contracts, "paysettler_settlements")], data_path)
 

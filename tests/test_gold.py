@@ -12,7 +12,8 @@ from conftest import FIXTURE_REFERENCE_DATE, SAMPLE_DATA
 from test_silver import build_lake, query, scalar
 
 from settlement_pipeline import lake, transform
-from settlement_pipeline.config import REPO_ROOT
+from settlement_pipeline.config import REPO_ROOT, load_settings
+from settlement_pipeline.pipeline import run_pipeline
 
 EXAMPLE_QUERIES = sorted((REPO_ROOT / "docs" / "queries").glob("*.sql"))
 
@@ -195,6 +196,30 @@ def test_reprocessing_a_date_rewrites_only_that_date(gold):
     """).fetchall()
     con.close()
     assert changes == [("delete", FIXTURE_REFERENCE_DATE, 93), ("insert", FIXTURE_REFERENCE_DATE, 93)]
+
+
+# ---------------------------------------------------------------------------
+# Contrato da saída
+# ---------------------------------------------------------------------------
+
+def test_gold_contract_blocks_a_model_that_changes_its_columns(tmp_path, gold):
+    """Renomear uma coluna da gold sem mudar o contrato quebra o build e não publica."""
+    project = tmp_path / "dbt"
+    shutil.copytree(REPO_ROOT / "dbt", project,
+                    ignore=shutil.ignore_patterns("target", "logs", ".user.yml"))
+    model = project / "models" / "gold" / "agg_run_health.sql"
+    model.write_text(model.read_text(encoding="utf-8").replace(
+        "as health_status", "as status_de_saude"), encoding="utf-8")
+    settings = load_settings(data_path=gold.data_path, lake_path=gold.lake_path,
+                             dbt_project_path=project)
+    published_before = scalar(gold, "select max(snapshot_id) from ops.publications")
+
+    outcome = run_pipeline(settings, "transform", ingest=False)
+
+    assert outcome.status == "failed"
+    assert "agg_run_health" in outcome.transform.failures
+    assert "contract" in outcome.transform.failures["agg_run_health"].lower()
+    assert scalar(gold, "select max(snapshot_id) from ops.publications") == published_before
 
 
 # ---------------------------------------------------------------------------

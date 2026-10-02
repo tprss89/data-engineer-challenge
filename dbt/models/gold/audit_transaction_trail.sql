@@ -61,7 +61,8 @@ with events as (
         processor || '.csv',
         json_object(
             'processor', processor, 'reference_date', reference_date, 'amount', amount,
-            'currency', currency, 'processor_reference', processor_reference
+            'amount_raw', amount_raw, 'currency', currency,
+            'processor_reference', processor_reference
         ),
         null,
         _batch_id, _source_file, _source_row
