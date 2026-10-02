@@ -25,18 +25,20 @@ with rejected as (
     from {{ ref('reconciliation_results_checked') }} as r
     where len(_dq_errors) > 0
 
+    {% for processor in var('settlement_processors') %}
     union all
 
     select
-        'paysettler_settlements',
+        '{{ processor }}_settlements',
         coalesce(transaction_id, amount_raw),
         reference_date,
         _dq_errors,
         _batch_id,
         _source_file,
         to_json(s)
-    from {{ ref('paysettler_settlements_checked') }} as s
+    from {{ ref(processor ~ '_settlements_checked') }} as s
     where len(_dq_errors) > 0
+    {% endfor %}
 )
 
 select * from rejected

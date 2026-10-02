@@ -118,6 +118,24 @@ models:
         description: Em UTC. Valores sem fuso no arquivo foram tratados como UTC.
         data_tests: [not_null]
 
+  - name: settlements
+    description: >
+      Liquidações aceitas de todos os processadores, num formato comum. A gold lê daqui.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [processor, reference_date, transaction_id]
+    columns:
+      - name: processor
+        data_tests: [not_null]
+      - name: amount
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [SETTLED, REVERSED]
+
   - name: quarantine
     description: Registros barrados na silver, com o motivo e a linha original em JSON.
     data_tests:

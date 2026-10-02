@@ -15,12 +15,11 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from settlement_pipeline.config import REPO_ROOT, Settings
+from settlement_pipeline.config import Settings
 from settlement_pipeline.logs import log_event
 
 logger = logging.getLogger(__name__)
 
-DBT_PROJECT_DIR = REPO_ROOT / "dbt"
 DBT_EXECUTABLE = Path(sys.executable).parent / "dbt"
 
 
@@ -53,8 +52,9 @@ def run_dbt(settings: Settings, select: list[str] | None = None,
     run_results = target_path / "run_results.json"
     run_results.unlink(missing_ok=True)
 
-    cmd = [str(DBT_EXECUTABLE), "build", "--project-dir", str(DBT_PROJECT_DIR),
-           "--profiles-dir", str(DBT_PROJECT_DIR), "--target-path", str(target_path),
+    project = str(settings.dbt_project_path)
+    cmd = [str(DBT_EXECUTABLE), "build", "--project-dir", project,
+           "--profiles-dir", project, "--target-path", str(target_path),
            "--log-path", str(target_path / "logs"), "--no-use-colors"]
     if select:
         cmd += ["--select", *select]

@@ -9,6 +9,11 @@ test-paths: ["tests"]
 target-path: target
 clean-targets: [target, logs]
 
+vars:
+  # Processadores de liquidação. Cada um tem um modelo <nome>_settlements_checked que traduz
+  # o arquivo dele para o formato comum (ver models/silver/settlements.sql).
+  settlement_processors: [paysettler]
+
 models:
   settlement:
     silver:

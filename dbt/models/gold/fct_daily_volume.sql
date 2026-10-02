@@ -1,6 +1,6 @@
 -- Volume financeiro por dia, merchant e moeda. Junta duas visões do mesmo dinheiro:
 --   transacionado: transações internas, pela data de criação e pelo status atual
---   liquidado:     o que o PaySettler liquidou, pela data de liquidação
+--   liquidado:     o que os processadores liquidaram, pela data de liquidação
 --
 -- Datas em UTC, como o resto do pipeline. Moedas nunca são somadas entre si: não temos
 -- taxa de câmbio, então cada moeda é uma linha.
@@ -26,7 +26,7 @@ settled as (
         count(*) as settlements_count,
         sum(amount) filter (where status = 'SETTLED') as settled_amount,
         sum(amount) filter (where status = 'REVERSED') as reversed_amount
-    from {{ ref('paysettler_settlements') }}
+    from {{ ref('settlements') }}
     group by all
 ),
 

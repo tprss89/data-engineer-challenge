@@ -2,7 +2,7 @@
 -- os sistemas registraram sobre ela:
 --   - cada versão do registro interno (insert, update, delete no settlement_db)
 --   - cada resultado de reconciliação, inclusive os regravados e os barrados na quarentena
---   - cada liquidação ou estorno informado pelo PaySettler
+--   - cada liquidação ou estorno informado pelos processadores
 --
 -- Cada evento aponta para o arquivo, a linha e o hash do arquivo de onde veio. O hash
 -- prova que o arquivo é o mesmo que recebemos.
@@ -58,14 +58,14 @@ with events as (
         transaction_id,
         settled_at,
         'settlement_' || lower(status),
-        'paysettler.csv',
+        processor || '.csv',
         json_object(
-            'reference_date', reference_date, 'amount', amount, 'amount_raw', amount_raw,
+            'processor', processor, 'reference_date', reference_date, 'amount', amount,
             'currency', currency, 'processor_reference', processor_reference
         ),
         null,
         _batch_id, _source_file, _source_row
-    from {{ ref('paysettler_settlements') }}
+    from {{ ref('settlements') }}
 )
 
 select

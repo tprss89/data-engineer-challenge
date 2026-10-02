@@ -13,6 +13,7 @@ class Settings:
     data_path: Path       # onde as fontes chegam (fixture ou saída do gerador)
     lake_path: Path       # catálogo e arquivos do DuckLake
     contracts_path: Path  # contratos YAML das fontes
+    dbt_project_path: Path  # projeto dbt (silver e gold)
     log_level: str
     duckdb_memory_limit: str  # acima disso o DuckDB despeja em disco em vez de crescer
 
@@ -34,6 +35,7 @@ def load_settings(**overrides) -> Settings:
         "data_path": Path(os.getenv("DATA_PATH", REPO_ROOT / "docs" / "sample-data")),
         "lake_path": Path(os.getenv("LAKE_PATH", REPO_ROOT / "data" / "lake")),
         "contracts_path": Path(os.getenv("CONTRACTS_PATH", REPO_ROOT / "contracts")),
+        "dbt_project_path": Path(os.getenv("DBT_PROJECT_PATH", REPO_ROOT / "dbt")),
         "log_level": os.getenv("LOG_LEVEL", "INFO"),
         "duckdb_memory_limit": os.getenv("DUCKDB_MEMORY_LIMIT", "4GB"),
     }

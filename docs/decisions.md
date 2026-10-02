@@ -56,6 +56,8 @@ Registro das decisões do projeto e do motivo de cada uma. As marcadas como **pr
 
 **Provisória: valores de reconciliação tratados como BRL.** Os resultados não trazem moeda. O README diz que os valores internos são em reais.
 
+**Liquidações num formato comum (`silver.settlements`).** Cada processador tem um modelo que traduz o arquivo dele para o formato comum, e a gold lê só `settlements`, sem conhecer nenhum processador pelo nome. Plugar um processador novo é um contrato, dois modelos pequenos e uma linha em dois arquivos de configuração. `tests/test_extensibility.py` faz isso com um processador fictício de schema diferente e verifica que ele aparece da silver até a gold.
+
 ## Bronze
 
 **Idempotência em dois níveis.** Arquivo com hash já carregado é ignorado. No CDC, cada evento entra uma vez (hash do conteúdo), porque as extrações são acumuladas e uma nova traz eventos antigos junto.
