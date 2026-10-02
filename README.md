@@ -1,6 +1,6 @@
-# Case Técnico — Engenheiro(a) de Dados Sênior / Especialista
+# Case Técnico — Engenheiro(a) de Dados Sênior
 
-> **Solução.** Pipeline medallion em DuckDB + DuckLake + dbt, com contratos de dados, quarentena, publicação write-audit-publish e observabilidade por execução. As respostas às seções da entrega estão no fim deste README, em [Entrega](#entrega). Leituras de apoio:
+> **Solução.** Pipeline medallion em DuckDB + DuckLake + dbt, com contratos de dados, quarentena, publicação write-audit-publish e observabilidade por execução. As respostas às seções da entrega estão no fim do README, em [Entrega](#entrega). Leituras de apoio:
 >
 > - [`docs/data-products.md`](docs/data-products.md): Parte 1, perguntas por consumidor e queries de exemplo
 > - [`docs/architecture.md`](docs/architecture.md): Parte 3.1 e 3.2, produção e troubleshooting
@@ -281,7 +281,7 @@ Códigos de saída da CLI: `0` ok (pode haver alertas), `1` dado bloqueado (arqu
 
 O registro completo, com o motivo de cada escolha, está em [`docs/decisions.md`](docs/decisions.md). As que mais mudam o resultado:
 
-**Não refaço a reconciliação.** `reconciliation_results` é a fonte de verdade das categorias. O CSV de exemplo não reproduz os resultados (488 de 510 linhas têm valor diferente do interno), então recalcular daria números que não batem com o que o serviço gravou. O CSV entra como dado bruto do processador.
+**Não recalcular a reconciliação.** `reconciliation_results` é a fonte de verdade das categorias. O CSV de exemplo não reproduz os resultados (488 de 510 linhas têm valor diferente do interno), então recalcular daria números que não batem com o que o serviço gravou. O CSV entra como dado bruto do processador.
 
 **Os dados de exemplo são inconsistentes entre si, e tratei cada fonte pelo que ela é.** No fixture, resultados e transações divergem em 95% dos merchants e dos valores. Nos dados do gerador, a divergência é zero. Por isso não preencho campo de uma fonte com dado da outra; por exemplo, os 16 `merchant_id` nulos nos resultados continuam nulos e geram alerta. A divergência não fica escondida: dois checks cruzados comparam cada resultado com o sistema interno e com o arquivo do processador e alertam a cada execução (763 e 91 divergências no fixture, zero no gerador).
 
@@ -293,11 +293,11 @@ O registro completo, com o motivo de cada escolha, está em [`docs/decisions.md`
 
 **Nada é descartado em silêncio.** Registro com problema vai para `silver.quarantine`, com o motivo e a linha original. Se mais de 5% de um arquivo cair lá, o pipeline não publica. A proporção é por arquivo e não sobre o histórico, porque sobre o histórico um dia inteiro quebrado se diluiria e passaria.
 
-**Moedas não se somam.** O README diz que tudo é BRL, mas o gerador produz USD e EUR. Sem taxa de câmbio, cada moeda é uma linha. Os resultados de reconciliação não trazem moeda, e a primeira versão supunha BRL. Medi o efeito nos dados do gerador: cerca de 5% do valor em risco era dólar ou euro somado como real. Hoje a moeda vem da transação interna ou do arquivo do processador, com uma coluna dizendo de onde veio.
+**Moedas não se somam.** O README diz que tudo é BRL, mas o gerador produz USD e EUR. Sem taxa de câmbio, cada moeda é uma linha. Os resultados de reconciliação não trazem moeda; ela vem da transação interna ou, sem ela, do arquivo do processador, com uma coluna dizendo de onde veio. Supor BRL para tudo somaria dólar e euro como real: nos dados do gerador, cerca de 5% do valor em risco está em outra moeda.
 
 **A mesma transação aparece em vários runs.** As janelas de 7 dias se sobrepõem (no fixture, um run a cada 3 dias), então separei o que cada run disse do que continua aberto agora.
 
-**Pico de discrepância é um teste estatístico, não um limiar fixo.** Um run é marcado quando a taxa fica mais de 3 desvios padrão acima da taxa dos 7 runs anteriores, considerando o número de resultados do run. Comecei com "+2 pontos percentuais", e a revisão mostrou que isso é ruído com 90 resultados por run (o fixture) e cego com 5 milhões.
+**Pico de discrepância é um teste estatístico, não um limiar fixo.** Um run é marcado quando a taxa fica mais de 3 desvios padrão acima da taxa dos 7 runs anteriores, considerando o número de resultados do run. Um limiar fixo em pontos percentuais seria ruído com 90 resultados por run, como no fixture, e cego com 5 milhões.
 
 **Ambiguidades que resolvi por conta própria e que validaria com o time.** No fixture, os runs são a cada 3 dias, mas o glossário fala em arquivo diário. Há resultados regravados dentro do mesmo run (44 linhas); guardo todos e uso o mais recente, porque o próprio serviço conta essas linhas no total do run. Dois limiares foram escolhidos sem histórico: 5% de quarentena por arquivo para bloquear e 4 GB de memória para o DuckDB.
 

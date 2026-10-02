@@ -25,19 +25,17 @@ Os modelos mais lentos foram `audit_transaction_trail` (17 s, porque é a maior 
 
 Conclusão para a premissa atual: **5M transações por mês cabem com folga**. O mês inteiro processa em uns 90 segundos num notebook.
 
-## O que o benchmark me ensinou
+## O que o volume revela
 
-Rodei três vezes, e cada rodada mudou alguma coisa no código.
+Algumas características da solução só aparecem com volume real. O fixture não chega perto delas.
 
-**Primeira rodada: o dbt usava 6,6 GB de 7,7 GB disponíveis.** O DuckDB, por padrão, usa até 80% da RAM. Numa máquina compartilhada isso é perigoso. Coloquei um limite explícito (`DUCKDB_MEMORY_LIMIT`, padrão de 4 GB) e uma pasta para ele despejar em disco quando passar disso.
+**Memória.** Por padrão, o DuckDB usa até 80% da RAM da máquina. Sem limite, o build de 5 milhões chega a 6,6 GB de 7,7 GB disponíveis, o que é arriscado numa máquina compartilhada. Por isso o limite é explícito (`DUCKDB_MEMORY_LIMIT`, padrão de 4 GB), com uma pasta para o DuckDB despejar em disco quando passar dele. Com 2 GB, o build ainda termina, em 107 s. O limite e a pasta são definidos na criação do banco, e não por cursor, porque o DuckDB não aceita trocar a pasta temporária depois de usá-la. Isso só se manifesta quando o volume é grande o bastante para usar disco.
 
-**Na mesma rodada, a quarentena levava 22 s.** Os modelos `*_checked` eram ephemeral, e o dbt copia um modelo ephemeral para dentro de cada consumidor. A resolução de CDC rodava duas vezes, uma para a tabela final e outra para a quarentena. Materializando como tabela, o build completo caiu de 91 s para 62 s.
+**Resolução de CDC calculada uma vez.** Os modelos `*_checked` da silver são tabelas. Como ephemeral, o dbt copiaria o modelo para dentro de cada consumidor, e a resolução de CDC rodaria duas vezes: uma para a tabela final e outra para a quarentena. Com 5 milhões, isso é a diferença entre 62 s e 91 s de build.
 
-**Segunda rodada: o build quebrou ao despejar em disco.** Eu tinha passado a pasta temporária como configuração por cursor, e o DuckDB não deixa trocá-la depois de usada. Nos testes isso nunca aparecia, porque o volume pequeno não chega a usar disco. Só o volume real revelou o problema. Mudei para configuração na criação do banco.
+**Reprocessar uma data custa quase o mesmo que o build completo.** O fato da gold é incremental e reprocessa uma data em menos de 2 s. Mas a silver é reconstruída inteira a cada execução, e é ela que domina o tempo. Esse é o principal limite do desenho e o assunto da próxima seção.
 
-**Reprocessar uma data custa quase o mesmo que o build completo.** O fato da gold é incremental e leva menos de 2 s, mas a silver é reconstruída inteira a cada execução. Esse é o principal limite do desenho, e é o assunto da próxima seção.
-
-**O lake ocupou 11,5 GB para 1,2 GB de fontes.** Cada reconstrução guarda a versão anterior das tabelas como snapshot, e é isso que dá o time travel. Expirar os snapshots anteriores à última publicação levou o lake para 4,8 GB em menos de um segundo, e a gold publicada continuou respondendo.
+**Snapshots ocupam espaço.** Depois de alguns builds, o lake ocupa 11,5 GB para 1,2 GB de fontes, porque cada reconstrução guarda a versão anterior das tabelas como snapshot, e é isso que dá o time travel. Expirar os snapshots anteriores à última publicação leva o lake para 4,8 GB em menos de um segundo, e a gold publicada continua respondendo.
 
 ## Onde o desenho quebra com 5M por dia
 

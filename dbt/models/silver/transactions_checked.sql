@@ -1,5 +1,5 @@
 -- Tabela (e não ephemeral) porque o modelo final e a quarentena leem daqui: como
--- ephemeral, a resolução de CDC rodava duas vezes.
+-- ephemeral, a resolução de CDC rodaria duas vezes.
 {{ config(materialized='table') }}
 
 -- Estado atual de cada transação, ainda com os registros problemáticos marcados.

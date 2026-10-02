@@ -13,7 +13,7 @@ Stack obrigatória: Python 3.12+, DuckDB para processamento, Docker Compose para
 Não reabra essas decisões sem me perguntar. O porquê de cada uma fica em `docs/decisions.md`.
 
 - Arquitetura medallion: bronze (cópia fiel da fonte, só append), silver (CDC aplicado, tipado, deduplicado, com quarentena), gold (fatos e dimensões por consumidor).
-- Storage em DuckLake numa pasta local, e transformações em dbt-duckdb. Validado no bloco 0 com duckdb 1.5.6, dbt-core 1.12.5 e dbt-duckdb 1.11.0, rodando no container sem rede: build repetido é idempotente, transação que falha no meio faz rollback completo, time travel funciona e o incremental `delete+insert` por `reference_date` substitui só a data reprocessada. A extensão `ducklake` é instalada no build da imagem para não depender de rede em runtime.
+- Storage em DuckLake numa pasta local, e transformações em dbt-duckdb. Validado com duckdb 1.5.6, dbt-core 1.12.5 e dbt-duckdb 1.11.0, rodando no container sem rede: build repetido é idempotente, transação que falha no meio faz rollback completo, time travel funciona e o incremental `delete+insert` por `reference_date` substitui só a data reprocessada. A extensão `ducklake` é instalada no build da imagem para não depender de rede em runtime.
 - `reconciliation_results` é a fonte de verdade das categorias. O pipeline não refaz a reconciliação. Motivo: o CSV de exemplo não reproduz os resultados (488 de 510 linhas têm valor diferente do interno).
 - O CSV do PaySettler entra como dado bruto do processador, usado para checks cruzados e trilha de auditoria.
 - Sem Airflow na entrega. A CLI idempotente por `reference_date` é a unidade que um orquestrador chamaria. O orquestrador aparece no desenho de arquitetura (Parte 3).
