@@ -70,6 +70,28 @@ def test_blocked_run_keeps_previous_publication(settings):
         first.published_snapshot
 
 
+def test_small_broken_file_is_blocked_even_with_large_history(settings):
+    """O limite de quarentena é por arquivo: o histórico não dilui um arquivo quebrado."""
+    first = pipeline.run_pipeline(settings, reference_date=FIXTURE_REFERENCE_DATE)
+
+    # Arquivo do dia seguinte com 20 linhas, todas com valor ilegível. Sobre o histórico
+    # (500 liquidações aceitas) seriam 3,8% e passariam; no arquivo são 100%.
+    header = "transaction_id,merchant_id,amount,currency,settled_at,processor_reference,status"
+    rows = [f"6f1d2c3b-0000-4000-8000-{i:012d},MERCH_001,valor?,BRL,2025-03-17T10:00:00Z,"
+            f"PS-X-{i},SETTLED" for i in range(20)]
+    (settings.data_path / "paysettler").mkdir()
+    (settings.data_path / "paysettler" / "settlement_2025-03-17.csv").write_text(
+        "\n".join([header, *rows]) + "\n", encoding="utf-8")
+
+    second = pipeline.run_pipeline(settings)
+
+    assert (second.status, second.exit_code) == ("blocked", cli.EXIT_DATA_BLOCKED)
+    assert any("rejected_ratio_below" in name and "paysettler" in name
+               for name in second.transform.failures)
+    assert scalar(settings, "select max(snapshot_id) from ops.publications") == \
+        first.published_snapshot
+
+
 def test_contract_violation_stops_before_transform(settings):
     (settings.data_path / "settlement_paysettler.csv").write_text("so,isso\n1,2\n")
 

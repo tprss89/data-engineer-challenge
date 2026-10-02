@@ -13,6 +13,6 @@ limit 5;
 
 set variable first_publication = (select min(snapshot_id) from ops.publications);
 
-select reference_date, health_status, discrepancy_rate, amount_at_risk
+select reference_date, health_status, discrepancy_rate, amount_at_risk_brl
 from gold_build.agg_run_health at (version => getvariable('first_publication'))
 order by reference_date

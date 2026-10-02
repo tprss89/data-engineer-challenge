@@ -5,6 +5,7 @@
 -- depois não aparece como pendência.
 select
     latest_category as categoria,
+    currency as moeda,
     case
         when days_open <= 3 then '0-3 dias'
         when days_open <= 7 then '4-7 dias'
@@ -16,4 +17,4 @@ select
 from gold.fct_transaction_reconciliation_status
 where is_open
 group by all
-order by categoria, min(days_open)
+order by categoria, moeda, min(days_open)

@@ -27,9 +27,9 @@ A dor: saber se a reconciliação está saudável e se a taxa de discrepância e
 | O que está pendente de verdade, e há quanto tempo? | `ops_02_open_backlog.sql` |
 | Quais merchants concentram as pendências? | `ops_03_merchants_at_risk.sql` |
 
-`health_status` resume cada run numa palavra, em ordem de gravidade: `FAILED`, `IN_PROGRESS`, `INCOMPLETE` (chegou menos resultado do que o declarado), `DISCREPANCY_SPIKE` (taxa 2 pontos percentuais acima da média dos 3 runs anteriores) e `OK`. No fixture, o run de 22/03 aparece como `FAILED`, com 116 resultados declarados e nenhum recebido. É o tipo de coisa que hoje ninguém vê.
+`health_status` resume cada run numa palavra, em ordem de gravidade: `FAILED`, `IN_PROGRESS`, `INCOMPLETE` (chegou menos resultado do que o declarado), `DISCREPANCY_SPIKE` e `OK`. No fixture, o run de 22/03 aparece como `FAILED`, com 116 resultados declarados e nenhum recebido. É o tipo de coisa que hoje ninguém vê.
 
-O limite de 2 p.p. é provisório. Escolhi olhando a variação normal do fixture (entre 11% e 15%), mas com histórico real eu calibraria por desvio padrão.
+"Taxa subindo" é decidido por um teste estatístico, não por um limiar fixo. A linha de base é a taxa dos até 7 runs anteriores, e o run vira `DISCREPANCY_SPIKE` quando fica mais de 3 desvios padrão acima dela. O desvio depende de quantos resultados o run tem: com 90 resultados, 2 pontos percentuais a mais é ruído; com 5 milhões, meio ponto já é uma mudança real. A coluna `discrepancy_z_score` mostra o valor, e no fixture o maior é 0,46.
 
 **O que não respondo:**
 
@@ -96,6 +96,6 @@ As tabelas de `gold` são views publicadas pelo pipeline. O dbt constrói e test
 
 `fct_reconciliation_result` é incremental por data de referência: `pipeline run --reference-date 2025-03-16` apaga e regrava só aquela data. As outras são reconstruídas a cada execução, porque são agregações pequenas sobre ela.
 
-`amount_at_risk` é o dinheiro que uma discrepância envolve: a diferença, no `MISMATCHED`, e o valor inteiro do lado que existe, nos `UNRECONCILED`. Os resultados não trazem moeda; pelo README, os valores internos são em reais.
+`amount_at_risk` é o dinheiro que uma discrepância envolve: a diferença, no `MISMATCHED`, e o valor inteiro do lado que existe, nos `UNRECONCILED`. Os resultados não trazem moeda, então ela vem da transação interna ou, sem ela, do arquivo do processador (`currency_source` diz de onde). `agg_run_health` soma só BRL; outras moedas ficam no fato, por moeda.
 
 Deixei de fora uma dimensão de datas e uma camada semântica. O DuckDB resolve datas com funções nativas, e para o tamanho deste problema as queries de exemplo cumprem o papel da camada semântica. Num ambiente com várias ferramentas de BI consumindo, eu colocaria as métricas num lugar só (dbt semantic layer ou similar) para "taxa de discrepância" ter uma única definição.

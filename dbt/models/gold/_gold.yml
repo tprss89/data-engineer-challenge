@@ -49,8 +49,17 @@ models:
                 field: merchant_key
       - name: amount_at_risk
         description: >
-          Dinheiro envolvido na discrepância: a diferença no MISMATCHED, o valor do lado que
-          existe nos UNRECONCILED, zero no MATCHED.
+          Dinheiro envolvido na discrepância, na moeda da coluna currency: a diferença no
+          MISMATCHED, o valor do lado que existe nos UNRECONCILED, zero no MATCHED.
+      - name: currency
+        description: >
+          Moeda da transação interna; sem ela, a do arquivo do processador; sem os dois, BRL.
+        data_tests: [not_null]
+      - name: currency_source
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [internal_transaction, processor_file, assumed_brl]
 
   - name: agg_run_health
     description: Uma linha por execução da reconciliação. Consumidor - Operações.
@@ -64,8 +73,14 @@ models:
                 values: [OK, DISCREPANCY_SPIKE, INCOMPLETE, IN_PROGRESS, FAILED]
       - name: discrepancy_rate
         description: Fração dos resultados efetivos que não são MATCHED. Null se o run não tem resultados.
-      - name: trailing_avg_discrepancy_rate
-        description: Média da taxa nos 3 runs anteriores (sem contar o atual).
+      - name: baseline_discrepancy_rate
+        description: Taxa agregada dos até 7 runs anteriores (sem contar o atual).
+      - name: discrepancy_z_score
+        description: >
+          Quantos desvios padrão a taxa do run está acima da linha de base, considerando o
+          número de resultados do run. Acima de 3 vira DISCREPANCY_SPIKE.
+      - name: amount_at_risk_brl
+        description: Valor em discrepância em BRL. Outras moedas ficam no fato, por moeda.
 
   - name: fct_transaction_reconciliation_status
     description: >

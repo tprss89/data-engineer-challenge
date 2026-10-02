@@ -21,6 +21,7 @@ per_transaction as (
         arg_max(merchant_key, (reference_date, reconciled_at)) as merchant_key,
         arg_max(category, (reference_date, reconciled_at)) as latest_category,
         arg_max(amount_at_risk, (reference_date, reconciled_at)) as latest_amount_at_risk,
+        arg_max(currency, (reference_date, reconciled_at)) as currency,
         min(reference_date) as first_reference_date,
         max(reference_date) as last_reference_date,
         count(*) as runs_count,
@@ -52,6 +53,7 @@ select
     case when latest_category <> 'MATCHED' then as_of.as_of_date - open_since end as days_open,
     case when latest_category <> 'MATCHED' then latest_amount_at_risk else 0 end
         ::decimal(18, 2) as open_amount_at_risk,
+    currency,
     first_reference_date,
     last_reference_date,
     runs_count,

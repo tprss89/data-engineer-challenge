@@ -1,6 +1,6 @@
 # Decisões
 
-Registro das decisões do projeto e do motivo de cada uma. As marcadas como **provisória** foram tomadas durante a construção e vão ser revistas quando o pipeline inteiro estiver rodando e testado.
+Registro das decisões do projeto e do motivo de cada uma. Algumas foram tomadas como provisórias durante a construção e revistas depois que o pipeline inteiro estava rodando e medido. Essa revisão mudou três delas, e o motivo de cada mudança está registrado junto.
 
 ## Fundação
 
@@ -32,13 +32,13 @@ Registro das decisões do projeto e do motivo de cada uma. As marcadas como **pr
 
 **Registro com problema vai para `silver.quarantine`, nunca some.** Cada linha rejeitada fica com o motivo e o registro original em JSON.
 
-**Provisória: quarentena acima de 5% de uma fonte bloqueia a publicação.** Abaixo disso, publica e alerta. A ideia é que poucas linhas ruins são problema de dado, e muitas indicam uma fonte quebrada, quando é melhor não publicar número que parece certo. O valor de 5% foi escolhido sem base histórica; precisa ser calibrado com dados reais.
+**Quarentena acima de 5% de um arquivo bloqueia a publicação.** Abaixo disso, publica e alerta. Poucas linhas ruins são problema de dado; muitas indicam um arquivo quebrado, e aí é melhor não publicar número que parece certo. A primeira versão calculava a proporção sobre o histórico inteiro, e a revisão mostrou o defeito: com 30 dias acumulados, um dia 100% quebrado seria só 3% do total e passaria. Hoje a proporção é por lote de ingestão (um arquivo), e há um teste com exatamente esse caso (20 linhas ruins sobre 500 boas, bloqueado). Um lote bloqueado continua bloqueando até a fonte ser corrigida, porque aceitar um arquivo ruim é decisão de alguém. Em produção, eu teria uma lista de lotes aceitos com ressalva. Os 5% foram escolhidos sem histórico e precisam ser calibrados por fonte.
 
-**Provisória: resultados regravados no mesmo run ficam guardados.** A mesma transação aparece mais de uma vez no mesmo run (44 linhas no fixture). Todas ficam em `silver.reconciliation_results`, e `is_effective` marca a mais recente, que é a que vale nas métricas. Pensei em Compliance: descartar esconderia que o serviço regravou.
+**Resultados regravados no mesmo run ficam guardados, e vale o mais recente.** A mesma transação aparece mais de uma vez no mesmo run (44 linhas no fixture). Todas ficam em `silver.reconciliation_results`, e `is_effective` marca a mais recente, que é a que vale nas métricas. O próprio serviço conta essas linhas: o run 1 declara 119 resultados e tem 119 linhas, de 106 transações distintas. Descartar esconderia algo que o serviço fez. Isso parece contradizer o CSV, onde a mesma transação com conteúdo diferente bloqueia as duas linhas. A diferença é que os resultados têm `created_at`, uma ordem real de escrita, e duas linhas do mesmo CSV não têm nenhum sinal de qual é a correta.
 
-**Provisória: `merchant_id` nulo em resultados fica nulo e só gera alerta.** Seriam 16 linhas recuperáveis via `transactions`, mas no fixture resultados e transações divergem em 95% dos merchants. Preencher a partir de outra fonte misturaria dados que não batem.
+**`merchant_id` nulo em resultados fica nulo e só gera alerta.** Seriam 16 linhas recuperáveis via `transactions`, mas no fixture resultados e transações divergem em 95% dos merchants. Preencher a partir de outra fonte misturaria dados que não batem, e mandar para a quarentena tiraria das métricas resultados válidos. Na gold, essas linhas aparecem no merchant "não identificado". Nos dados do gerador a divergência é zero; em produção, eu preencheria a partir de `transactions` com um check de consistência, se a divergência medida fosse baixa.
 
-**Provisória: moeda aceita BRL, USD e EUR, sem conversão.** O README diz que `amount` é em BRL, mas o gerador produz USD e EUR. Mantenho a moeda informada; moeda fora dessas três gera alerta. Somar valores de moedas diferentes fica proibido na gold.
+**Moeda aceita BRL, USD e EUR, sem conversão.** O README diz que `amount` é em BRL, mas o gerador produz USD e EUR. Mantenho a moeda informada; moeda fora dessas três gera alerta. Sem taxa de câmbio, valores de moedas diferentes nunca são somados.
 
 ## Gold
 
@@ -52,9 +52,9 @@ Registro das decisões do projeto e do motivo de cada uma. As marcadas como **pr
 
 **Merchant na versão da época.** Os fatos apontam para a versão do cadastro válida na data do evento. A primeira versão vale desde sempre (com a data real em `registered_at`), para um fato anterior ao primeiro evento de CDC ainda achar o merchant. Merchant nulo ou fora do cadastro aponta para o membro `-1`.
 
-**Provisória: pico de discrepância = taxa 2 p.p. acima da média dos 3 runs anteriores.** Escolhido olhando a variação do fixture (11% a 15%). Com histórico real, eu calibraria por desvio padrão.
+**Pico de discrepância por teste estatístico, não por limiar fixo.** A primeira regra era "taxa 2 p.p. acima da média dos 3 runs anteriores". A revisão mostrou que um limiar fixo em p.p. se comporta de forma oposta conforme o tamanho do run. Com 90 resultados (fixture), a variação natural de uma taxa de 13% é de uns 3,5 p.p., então 2 p.p. é ruído. Com 5 milhões, a variação natural é de 0,02 p.p., e uma piora real de 0,5 p.p. passaria batida. Hoje a linha de base é a taxa agregada dos até 7 runs anteriores, e o run é marcado quando fica mais de 3 desvios padrão acima dela (teste z para proporção, que considera o número de resultados). No fixture, o maior z é 0,46; o pico simulado no teste passa com folga de 3. A regra olha só a taxa: um run com poucas discrepâncias de valor muito alto não dispara. Um segundo gatilho por valor fica como evolução.
 
-**Provisória: valores de reconciliação tratados como BRL.** Os resultados não trazem moeda. O README diz que os valores internos são em reais.
+**Moeda dos resultados de reconciliação recuperada, e não suposta.** Os resultados não trazem moeda, e a primeira versão tratava tudo como BRL. A revisão mediu o efeito nos dados do gerador: cerca de 5% do valor em risco era USD ou EUR somado como real, o que contradizia a regra de nunca somar moedas. Hoje a moeda vem da transação interna e, sem ela (UNRECONCILED_PROCESSOR), do arquivo do processador. Só em último caso assume BRL, e `currency_source` registra de onde veio. No gerador, 100% das moedas vêm de uma das duas fontes. `agg_run_health` soma só BRL (`amount_at_risk_brl`) e conta à parte as discrepâncias em outras moedas; o detalhe por moeda fica no fato. Isso parece contradizer a decisão do merchant nulo, que também seria preencher de outra fonte. A diferença está no risco: moeda errada só aparece se as fontes discordarem, e a coluna de origem deixa isso auditável; merchant errado atribuiria uma discrepância à empresa errada.
 
 **Liquidações num formato comum (`silver.settlements`).** Cada processador tem um modelo que traduz o arquivo dele para o formato comum, e a gold lê só `settlements`, sem conhecer nenhum processador pelo nome. Plugar um processador novo é um contrato, dois modelos pequenos e uma linha em dois arquivos de configuração. `tests/test_extensibility.py` faz isso com um processador fictício de schema diferente e verifica que ele aparece da silver até a gold.
 

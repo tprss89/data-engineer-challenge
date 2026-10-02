@@ -10,7 +10,7 @@ Stack obrigatória: Python 3.12+, DuckDB para processamento, Docker Compose para
 
 ## Decisões já tomadas
 
-Não reabra essas decisões sem me perguntar. O porquê de cada uma fica em `docs/decisions.md`. As marcadas lá como **provisória** devem ser revistas comigo na fase de testes finais.
+Não reabra essas decisões sem me perguntar. O porquê de cada uma fica em `docs/decisions.md`.
 
 - Arquitetura medallion: bronze (cópia fiel da fonte, só append), silver (CDC aplicado, tipado, deduplicado, com quarentena), gold (fatos e dimensões por consumidor).
 - Storage em DuckLake numa pasta local, e transformações em dbt-duckdb. Validado no bloco 0 com duckdb 1.5.6, dbt-core 1.12.5 e dbt-duckdb 1.11.0, rodando no container sem rede: build repetido é idempotente, transação que falha no meio faz rollback completo, time travel funciona e o incremental `delete+insert` por `reference_date` substitui só a data reprocessada. A extensão `ducklake` é instalada no build da imagem para não depender de rede em runtime.
@@ -24,8 +24,9 @@ Não reabra essas decisões sem me perguntar. O porquê de cada uma fica em `doc
 make up          # sobe o container
 make shell       # shell dentro do container
 make test        # roda os testes
-make ingest      # carrega o fixture no bronze (o CSV do fixture é de 2025-03-16)
-make status      # últimas ingestões, a partir de ops.ingestion_log
+make run         # pipeline completo no fixture (ingest, dbt, publicação)
+make ingest      # só o bronze (o CSV do fixture é de 2025-03-16)
+make status      # painel de diagnóstico: execuções, frescor, publicação, alertas
 make generate    # gera 10k linhas sintéticas em /tmp/generated
 ```
 
@@ -49,14 +50,16 @@ No Git Bash do Windows, use `MSYS_NO_PATHCONV=1` antes de comandos `docker` que 
 - Regra de negócio sempre com referência ao glossário. Tolerância de R$ 0,01 e janela de 7 dias inclusiva vêm de lá.
 - Só considere uma mudança pronta depois de rodar os testes no container. "Deveria funcionar" não conta.
 - Timestamps são tratados como UTC. Valor sem fuso é assumido UTC e isso está documentado.
-- Silver: cada fonte com problema de qualidade tem um modelo `*_checked` (ephemeral) que marca `_dq_errors`; o modelo final pega as linhas sem erro e `silver.quarantine` junta as rejeitadas com motivo e a linha original em JSON. Não descarte registro em silêncio.
+- Silver: cada fonte com problema de qualidade tem um modelo `*_checked` (tabela, não ephemeral: a quarentena e o modelo final leem dele) que marca `_dq_errors`; o modelo final pega as linhas sem erro e `silver.quarantine` junta as rejeitadas com motivo e a linha original em JSON. Não descarte registro em silêncio.
 - Gold: perguntas por consumidor e o que fica de fora estão em `docs/data-products.md`. Toda pergunta nova vira uma query em `docs/queries/`, que é testada automaticamente (`tests/test_gold.py`).
 - `fct_reconciliation_result` é incremental por `reference_date` (var do dbt passada pela CLI). Não use `current_date` em modelo: "hoje" é o run mais recente nos dados.
 - Consumidores leem `gold.*`, que são views fixadas num snapshot do DuckLake. O dbt escreve em `gold_build`; `publish.py` só publica se o build inteiro passou. Nunca aponte uma query de consumidor para `gold_build`.
 - Toda execução passa por `pipeline.run_pipeline`, que registra `ops.pipeline_runs` e `ops.dq_results`. Não chame dbt ou ingestão por fora dele na CLI.
 - Desempenho: meça com `scripts/benchmark.py` (dentro do container) antes de afirmar qualquer coisa sobre escala. Resultados e o plano para 5M/dia estão em `docs/scale.md`. Não mexa no docker-compose.yml com um benchmark rodando: recriar o container apaga o /tmp.
 - A gold lê liquidações só de `silver.settlements`, nunca de um processador pelo nome. Processador novo segue o roteiro de `tests/test_extensibility.py`.
-- Quarentena acima de 5% de uma fonte bloqueia o build (`rejected_ratio_below`, severidade error). Qualquer linha em quarentena gera alerta.
+- Quarentena acima de 5% de um lote de ingestão (um arquivo) bloqueia o build (`rejected_ratio_below`, severidade error). A proporção é por lote, nunca sobre o histórico, que diluiria um arquivo quebrado. Qualquer linha em quarentena gera alerta.
+- Valores de moedas diferentes nunca são somados. `fct_reconciliation_result.currency` vem da transação interna, depois do processador, e só em último caso BRL (`currency_source`).
+- Pico de discrepância é teste z (3 desvios sobre a taxa dos até 7 runs anteriores), nunca limiar fixo em pontos percentuais.
 
 ## O que já sabemos dos dados de exemplo
 

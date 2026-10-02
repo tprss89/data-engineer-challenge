@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import duckdb
@@ -104,6 +106,35 @@ def test_daily_volume_nets_out_reversals(gold):
     """)[0]
     assert reversed_ > 0
     assert net == settled - reversed_
+
+
+def test_amounts_in_other_currencies_are_never_added_as_brl(tmp_path):
+    data = tmp_path / "generated"
+    subprocess.run([
+        sys.executable, str(REPO_ROOT / "scripts" / "generate_sample_data.py"),
+        "--rows", "20000", "--days", "10", "--merchants", "50", "--seed", "11",
+        "--out", str(data),
+    ], check=True, capture_output=True)
+    settings, result = build_lake(tmp_path, data=data, reference_date=None)
+    assert result.success, result.failures
+
+    by_source = dict(query(settings, """
+        select currency_source, count(*) from gold.fct_reconciliation_result group by 1
+    """))
+    # O gerador é consistente: toda moeda vem de uma fonte, nenhuma é suposta.
+    assert set(by_source) <= {"internal_transaction", "processor_file"}
+    assert scalar(settings, """
+        select count(distinct currency) from gold.fct_reconciliation_result
+    """) == 3
+    # A saúde dos runs soma só BRL e conta à parte o que está em outra moeda.
+    brl, other = query(settings, """
+        select sum(amount_at_risk_brl), sum(discrepancies_in_other_currencies)
+        from gold.agg_run_health
+    """)[0]
+    assert brl == scalar(settings, """
+        select sum(amount_at_risk) from gold.fct_reconciliation_result where currency = 'BRL'
+    """)
+    assert other > 0
 
 
 # ---------------------------------------------------------------------------

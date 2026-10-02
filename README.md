@@ -288,13 +288,15 @@ O registro completo, com o motivo de cada escolha, está em [`docs/decisions.md`
 
 **Datas em UTC.** Um `settled_at` sem fuso é tratado como UTC, como o glossário define. O fixture tem 25 casos.
 
-**Nada é descartado em silêncio.** Registro com problema vai para `silver.quarantine`, com o motivo e a linha original. Se mais de 5% de uma fonte cair lá, o pipeline não publica.
+**Nada é descartado em silêncio.** Registro com problema vai para `silver.quarantine`, com o motivo e a linha original. Se mais de 5% de um arquivo cair lá, o pipeline não publica. A proporção é por arquivo e não sobre o histórico, porque sobre o histórico um dia inteiro quebrado se diluiria e passaria.
 
-**Moedas não se somam.** O README diz que tudo é BRL, mas o gerador produz USD e EUR. Sem taxa de câmbio, cada moeda é uma linha. Os resultados de reconciliação não trazem moeda e são tratados como BRL.
+**Moedas não se somam.** O README diz que tudo é BRL, mas o gerador produz USD e EUR. Sem taxa de câmbio, cada moeda é uma linha. Os resultados de reconciliação não trazem moeda, e a primeira versão supunha BRL. Medi o efeito nos dados do gerador: cerca de 5% do valor em risco era dólar ou euro somado como real. Hoje a moeda vem da transação interna ou do arquivo do processador, com uma coluna dizendo de onde veio.
 
 **A mesma transação aparece em vários runs.** As janelas de 7 dias se sobrepõem (no fixture, um run a cada 3 dias), então separei o que cada run disse do que continua aberto agora.
 
-**Ambiguidades que resolvi por conta própria e que validaria com o time.** No fixture, os runs são a cada 3 dias, mas o glossário fala em arquivo diário. Há resultados regravados dentro do mesmo run (44 linhas); guardo todos e uso o mais recente. Há também três limiares que escolhi sem histórico para calibrar: 5% de quarentena para bloquear, +2 pontos percentuais para marcar pico de discrepância e 4 GB de memória para o DuckDB.
+**Pico de discrepância é um teste estatístico, não um limiar fixo.** Um run é marcado quando a taxa fica mais de 3 desvios padrão acima da taxa dos 7 runs anteriores, considerando o número de resultados do run. Comecei com "+2 pontos percentuais", e a revisão mostrou que isso é ruído com 90 resultados por run (o fixture) e cego com 5 milhões.
+
+**Ambiguidades que resolvi por conta própria e que validaria com o time.** No fixture, os runs são a cada 3 dias, mas o glossário fala em arquivo diário. Há resultados regravados dentro do mesmo run (44 linhas); guardo todos e uso o mais recente, porque o próprio serviço conta essas linhas no total do run. Dois limiares foram escolhidos sem histórico: 5% de quarentena por arquivo para bloquear e 4 GB de memória para o DuckDB.
 
 ### Visão geral da arquitetura
 
